@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-body), 'Be Vietnam Pro', sans-serif;
+  background-color: #f8f7f0;
+  color: #2e2f2b;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-headline), 'Plus Jakarta Sans', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Frosted glass nav */
+.frosted-nav {
+  background: rgba(248, 247, 240, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Ghost border for focused inputs */
+.ghost-border-focus:focus {
+  background-color: #ffffff;
+  outline: 2px solid rgba(123, 84, 0, 0.2);
+  outline-offset: -2px;
+}
+
+/* Ambient shadow for elevated elements */
+.ambient-shadow {
+  box-shadow: 0 10px 40px -10px rgba(46, 47, 43, 0.06);
+}
+
+.ambient-shadow-lg {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+}
+
+/* Smooth page transitions */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-400 { animation-delay: 400ms; }
