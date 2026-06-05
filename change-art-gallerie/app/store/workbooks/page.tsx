@@ -1,13 +1,35 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import ProductGrid from '@/components/store/ProductGrid';
-import { getProductsByStore } from '@/lib/products';
+import ProductGrid, { CMSProduct } from '@/components/store/ProductGrid';
 import Link from 'next/link';
+import { createBrowserClient } from '@/lib/supabase';
 
 export default function WorkbooksStorePage() {
-  const products = getProductsByStore('workbooks');
+  const [products, setProducts] = useState<CMSProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const supabase = createBrowserClient();
+        const { data } = await supabase
+          .from('products')
+          .select('*')
+          .eq('category', 'workbooks')
+          .eq('in_stock', true)
+          .order('sort_order', { ascending: true });
+        setProducts((data as CMSProduct[]) || []);
+      } catch {
+        // silently use empty list
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
   return (
     <>
@@ -55,7 +77,11 @@ export default function WorkbooksStorePage() {
           </div>
         </div>
 
-        <ProductGrid products={products} />
+        {loading ? (
+          <div className="text-center py-20 text-on-surface-variant">Loading products…</div>
+        ) : (
+          <ProductGrid products={products} />
+        )}
 
         <div className="mt-16 bg-surface-container-low rounded-xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>

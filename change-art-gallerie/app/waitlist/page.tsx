@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -8,12 +8,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BookCarousel from '@/components/BookCarousel';
 import RealTimeGrid from '@/components/RealTimeGrid';
-
-// ============================================
-// 🔧 CONFIGURATION
-// ============================================
-const WHATSAPP_NUMBER = '2348012345678'; // ← YOUR NUMBER
-const YOUTUBE_VIDEO_ID = 'YOUR_VIDEO_ID'; // ← Replace with your YouTube video ID (the part after v= in the URL)
+import { createBrowserClient } from '@/lib/supabase';
 
 const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/cag_childrencolouringbook/?hl=en',
@@ -22,30 +17,29 @@ const SOCIAL_LINKS = {
   linkedin: 'https://linkedin.com/company/changeartgallerie',
   pinterest: 'https://www.pinterest.com/changeartgallerie/children-colouring-books/',
 };
-// ============================================
 
-const FAQ_DATA = [
-  {
-    question: 'Where is the location of your office?',
-    answer: 'Port Harcourt City. But we have distributors across the state for quicker delivery.',
-  },
-  {
-    question: 'Can I buy in bulk?',
-    answer: 'Yes! We offer bulk pricing for schools, bookshops, and distributors. Reach out via WhatsApp for a custom quote.',
-  },
-  {
-    question: 'How many classes do you currently have?',
-    answer: 'We currently have books for Nursery 1, Nursery 2, and Nursery 3 classes, covering ages 3 to 5.',
-  },
-  {
-    question: 'How best can I reach out for quicker delivery?',
-    answer: 'Reach out through WhatsApp — tap the green chat button on the bottom-right corner of any page for instant response.',
-  },
-  {
-    question: 'What makes your books unique?',
-    answer: 'Our books are tailor-made for children between ages 3 and 5, with YouTube practice class videos (access only for users) and an assignment allocation record sheet for parents and guardians. They cover preliminary introductions to music, folktales, and handicraft activities and follow the global Montessori curriculum design.',
-  },
+const FALLBACK_FAQS = [
+  { question: 'Where is the location of your office?', answer: 'Port Harcourt City. But we have distributors across the state for quicker delivery.' },
+  { question: 'Can I buy in bulk?', answer: 'Yes! We offer bulk pricing for schools, bookshops, and distributors. Reach out via WhatsApp for a custom quote.' },
+  { question: 'How many classes do you currently have?', answer: 'We currently have books for Nursery 1, Nursery 2, and Nursery 3 classes, covering ages 3 to 5.' },
+  { question: 'How best can I reach out for quicker delivery?', answer: 'Reach out through WhatsApp — tap the green chat button on the bottom-right corner of any page for instant response.' },
+  { question: 'What makes your books unique?', answer: 'Our books are tailor-made for children between ages 3 and 5, with YouTube practice class videos and an assignment allocation record sheet for parents and guardians.' },
 ];
+
+const FALLBACK_GALLERY = [
+  { src: '/images/realtime-1.png', caption: 'Students exploring colour theory in the classroom' },
+  { src: '/images/realtime-2.png', caption: 'Nursery 1 pupils working on their first art project' },
+  { src: '/images/realtime-3.png', caption: 'A teacher guiding handicraft activities' },
+  { src: '/images/realtime-4.png', caption: 'Creative arts lesson in progress' },
+  { src: '/images/realtime-5.png', caption: 'Children proudly showing their completed work' },
+  { src: '/images/realtime-6.png', caption: 'Parents and kids learning together at home' },
+];
+
+const FALLBACK_BOOK_IMAGES: Record<string, string[]> = {
+  nursery1: ['/images/nursery1-page1.png', '/images/nursery1-page2.png', '/images/nursery1-page3.png', '/images/nursery1-page4.png'],
+  nursery2: ['/images/nursery2-page1.png', '/images/nursery2-page2.png', '/images/nursery2-page3.png', '/images/nursery2-page4.png'],
+  nursery3: ['/images/nursery3-page1.png', '/images/nursery3-page2.png', '/images/nursery3-page3.png', '/images/nursery3-page4.png'],
+};
 
 function FAQItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
@@ -57,19 +51,11 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
         className="w-full flex items-center justify-between px-6 py-5 text-left group"
       >
         <span className="font-bold text-base font-headline pr-4">{question}</span>
-        <span
-          className={`material-symbols-outlined text-primary shrink-0 transition-transform duration-300 ${
-            open ? 'rotate-180' : ''
-          }`}
-        >
+        <span className={`material-symbols-outlined text-primary shrink-0 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
           expand_more
         </span>
       </button>
-      <div
-        className={`overflow-hidden transition-all duration-300 ${
-          open ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
+      <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <p className="px-6 pb-5 text-on-surface-variant leading-relaxed">{answer}</p>
       </div>
     </div>
@@ -83,6 +69,67 @@ export default function WaitlistPage() {
   const [role, setRole] = useState('parent');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Dynamic CMS data
+  const [whatsappNumber, setWhatsappNumber] = useState('2348012345678');
+  const [youtubeVideoId, setYoutubeVideoId] = useState('YOUR_VIDEO_ID');
+  const [faqs, setFaqs] = useState(FALLBACK_FAQS);
+  const [galleryImages, setGalleryImages] = useState(FALLBACK_GALLERY);
+  const [bookImages, setBookImages] = useState(FALLBACK_BOOK_IMAGES);
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+
+    async function loadCMSData() {
+      try {
+        const [settingsRes, faqsRes, galleryRes, booksRes] = await Promise.all([
+          supabase.from('site_settings').select('key, value'),
+          supabase.from('faqs').select('*').order('sort_order', { ascending: true }),
+          supabase.from('gallery_photos').select('*').order('sort_order', { ascending: true }),
+          supabase.from('book_pages').select('*').order('sort_order', { ascending: true }),
+        ]);
+
+        // Settings
+        if (settingsRes.data && settingsRes.data.length > 0) {
+          const map: Record<string, string> = {};
+          for (const row of settingsRes.data) map[row.key] = row.value;
+          if (map.whatsapp_number) setWhatsappNumber(map.whatsapp_number);
+          if (map.youtube_video_id) setYoutubeVideoId(map.youtube_video_id);
+        }
+
+        // FAQs
+        if (faqsRes.data && faqsRes.data.length > 0) {
+          setFaqs(faqsRes.data.map((f) => ({ question: f.question, answer: f.answer })));
+        }
+
+        // Gallery
+        if (galleryRes.data && galleryRes.data.length > 0) {
+          setGalleryImages(galleryRes.data.map((p) => ({ src: p.image_url, caption: p.caption || '' })));
+        }
+
+        // Book pages grouped by level
+        if (booksRes.data && booksRes.data.length > 0) {
+          const grouped: Record<string, string[]> = { nursery1: [], nursery2: [], nursery3: [] };
+          for (const page of booksRes.data) {
+            if (grouped[page.book_level] !== undefined) {
+              grouped[page.book_level].push(page.image_url);
+            }
+          }
+          // Only update levels that have data, keep fallbacks for empty ones
+          const updated = { ...FALLBACK_BOOK_IMAGES };
+          if (grouped.nursery1.length > 0) updated.nursery1 = grouped.nursery1;
+          if (grouped.nursery2.length > 0) updated.nursery2 = grouped.nursery2;
+          if (grouped.nursery3.length > 0) updated.nursery3 = grouped.nursery3;
+          setBookImages(updated);
+        }
+      } catch (err) {
+        console.error('Failed to load CMS data:', err);
+        // Silently fall back to hardcoded values
+      }
+    }
+
+    loadCMSData();
+  }, []);
 
   function buildWhatsAppMessage() {
     const roleLabels: Record<string, string> = {
@@ -104,7 +151,7 @@ export default function WaitlistPage() {
 
   function openWhatsApp() {
     const msg = buildWhatsAppMessage();
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, '_blank', 'noopener,noreferrer');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -153,18 +200,8 @@ export default function WaitlistPage() {
                 Join the{' '}
                 <span className="relative inline-block">
                   Waitlist
-                  <svg
-                    className="absolute -bottom-2 left-0 w-full h-3 text-primary-fixed"
-                    preserveAspectRatio="none"
-                    viewBox="0 0 300 20"
-                  >
-                    <path
-                      d="M5 15Q150 2 295 15"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeWidth="6"
-                    />
+                  <svg className="absolute -bottom-2 left-0 w-full h-3 text-primary-fixed" preserveAspectRatio="none" viewBox="0 0 300 20">
+                    <path d="M5 15Q150 2 295 15" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="6" />
                   </svg>
                 </span>
               </h1>
@@ -174,7 +211,6 @@ export default function WaitlistPage() {
                 Be the first to know about new releases, exclusive discounts, and free teaching resources.
               </p>
 
-              {/* Trust badges */}
               <div className="flex flex-wrap gap-4 pt-2">
                 <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                   <span className="material-symbols-outlined text-tertiary text-lg">verified</span>
@@ -195,15 +231,12 @@ export default function WaitlistPage() {
             <div className="w-full lg:w-[440px] shrink-0">
               {!submitted ? (
                 <div className="bg-surface-container-lowest rounded-xl p-8 md:p-10 ambient-shadow-lg relative">
-                  {/* Decorative blobs */}
                   <div className="absolute -top-8 -right-8 w-24 h-24 bg-primary-container rounded-full mix-blend-multiply filter blur-xl opacity-40" />
                   <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-tertiary-container rounded-full mix-blend-multiply filter blur-xl opacity-40" />
 
                   <div className="relative z-10">
                     <h2 className="text-xl font-bold font-headline mb-1">Reserve your spot</h2>
-                    <p className="text-on-surface-variant text-sm mb-6">
-                      Join 500+ parents and educators on the waitlist.
-                    </p>
+                    <p className="text-on-surface-variant text-sm mb-6">Join 500+ parents and educators on the waitlist.</p>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                       <div>
@@ -261,29 +294,20 @@ export default function WaitlistPage() {
                         disabled={loading}
                         className="w-full bg-primary-container text-on-primary-container py-3.5 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed font-headline"
                       >
-                        {loading ? 'Joining...' : 'Join the Waitlist — It\'s Free'}
+                        {loading ? 'Joining...' : "Join the Waitlist — It's Free"}
                       </button>
 
-                      <p className="text-xs text-on-surface-variant text-center">
-                        No spam, ever. Unsubscribe anytime.
-                      </p>
+                      <p className="text-xs text-on-surface-variant text-center">No spam, ever. Unsubscribe anytime.</p>
                     </form>
                   </div>
                 </div>
               ) : (
-                /* Success state */
                 <div className="bg-surface-container-lowest rounded-xl p-8 md:p-10 ambient-shadow-lg text-center">
                   <div className="w-16 h-16 bg-tertiary-container rounded-full flex items-center justify-center mx-auto mb-5">
-                    <span className="material-symbols-outlined text-3xl text-on-tertiary-container">
-                      check_circle
-                    </span>
+                    <span className="material-symbols-outlined text-3xl text-on-tertiary-container">check_circle</span>
                   </div>
-                  <h2 className="text-2xl font-bold font-headline mb-2">
-                    You&apos;re in, {fullName.split(' ')[0]}! 🎉
-                  </h2>
-                  <p className="text-on-surface-variant mb-6">
-                    We&apos;ll notify you when the books are available. Chat with us now for instant answers!
-                  </p>
+                  <h2 className="text-2xl font-bold font-headline mb-2">You&apos;re in, {fullName.split(' ')[0]}! 🎉</h2>
+                  <p className="text-on-surface-variant mb-6">We&apos;ll notify you when the books are available. Chat with us now for instant answers!</p>
                   <button
                     onClick={openWhatsApp}
                     className="w-full bg-[#25D366] text-white py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-3 mb-3"
@@ -293,10 +317,7 @@ export default function WaitlistPage() {
                     </svg>
                     Continue on WhatsApp
                   </button>
-                  <Link
-                    href="/"
-                    className="text-primary font-bold text-sm hover:underline underline-offset-4"
-                  >
+                  <Link href="/" className="text-primary font-bold text-sm hover:underline underline-offset-4">
                     Browse our collection →
                   </Link>
                 </div>
@@ -310,7 +331,6 @@ export default function WaitlistPage() {
         {/* ============================================ */}
         <section className="px-6 md:px-8 py-12 max-w-screen-xl mx-auto">
           <div className="relative">
-            {/* Decorative blobs like hero */}
             <div className="absolute -top-8 -left-8 w-28 h-28 bg-secondary-container rounded-full mix-blend-multiply filter blur-xl opacity-50" />
             <div className="absolute -bottom-8 -right-8 w-36 h-36 bg-tertiary-container rounded-full mix-blend-multiply filter blur-xl opacity-50" />
 
@@ -318,9 +338,7 @@ export default function WaitlistPage() {
               <div className="p-6 md:p-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-error-container/20 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      play_circle
-                    </span>
+                    <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
                   </div>
                   <div>
                     <h2 className="text-xl font-bold font-headline">Welcome Message</h2>
@@ -328,10 +346,9 @@ export default function WaitlistPage() {
                   </div>
                 </div>
 
-                {/* YouTube Embed */}
                 <div className="relative rounded-lg overflow-hidden aspect-video bg-surface-container-high">
                   <iframe
-                    src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}`}
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
                     title="Welcome to Change Art Gallerie"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -344,7 +361,7 @@ export default function WaitlistPage() {
         </section>
 
         {/* ============================================ */}
-        {/* WHY CHANGE ART GALLERIE — Social Proof Strip */}
+        {/* WHY CHANGE ART GALLERIE */}
         {/* ============================================ */}
         <section className="bg-surface-container-low py-16 px-6 md:px-8">
           <div className="max-w-screen-xl mx-auto">
@@ -374,9 +391,7 @@ export default function WaitlistPage() {
         {/* ============================================ */}
         <section className="py-20 px-6 md:px-8 max-w-screen-xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">
-              What&apos;s Inside Our Books?
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">What&apos;s Inside Our Books?</h2>
             <p className="text-on-surface-variant max-w-lg mx-auto">
               Every book is packed with activities designed to develop your child&apos;s creativity following the Montessori approach.
             </p>
@@ -384,50 +399,15 @@ export default function WaitlistPage() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              {
-                icon: 'music_note',
-                title: 'Music Activities',
-                desc: 'Preliminary introductions to rhythm, singing, and musical instruments through fun exercises.',
-                color: 'bg-primary-container/20 text-primary',
-              },
-              {
-                icon: 'auto_stories',
-                title: 'Folktales & Stories',
-                desc: 'Rich African folktales that teach moral lessons while building reading comprehension skills.',
-                color: 'bg-secondary-container/20 text-secondary',
-              },
-              {
-                icon: 'construction',
-                title: 'Handicraft Activities',
-                desc: 'Hands-on craft projects using everyday materials that develop fine motor skills and creativity.',
-                color: 'bg-tertiary-container/20 text-tertiary',
-              },
-              {
-                icon: 'play_circle',
-                title: 'YouTube Practice Videos',
-                desc: 'Exclusive video lessons that bring each book chapter to life — access included with every purchase.',
-                color: 'bg-error-container/20 text-error',
-              },
-              {
-                icon: 'assignment',
-                title: 'Assignment Record Sheet',
-                desc: 'Built-in tracking sheets so parents and guardians can monitor their child\'s progress at home.',
-                color: 'bg-primary-container/20 text-primary-dim',
-              },
-              {
-                icon: 'school',
-                title: 'Montessori Curriculum',
-                desc: 'Content aligned with the global Montessori curriculum — trusted by educators worldwide.',
-                color: 'bg-tertiary-container/20 text-tertiary',
-              },
+              { icon: 'music_note', title: 'Music Activities', desc: 'Preliminary introductions to rhythm, singing, and musical instruments through fun exercises.', color: 'bg-primary-container/20 text-primary' },
+              { icon: 'auto_stories', title: 'Folktales & Stories', desc: 'Rich African folktales that teach moral lessons while building reading comprehension skills.', color: 'bg-secondary-container/20 text-secondary' },
+              { icon: 'construction', title: 'Handicraft Activities', desc: 'Hands-on craft projects using everyday materials that develop fine motor skills and creativity.', color: 'bg-tertiary-container/20 text-tertiary' },
+              { icon: 'play_circle', title: 'YouTube Practice Videos', desc: 'Exclusive video lessons that bring each book chapter to life — access included with every purchase.', color: 'bg-error-container/20 text-error' },
+              { icon: 'assignment', title: 'Assignment Record Sheet', desc: "Built-in tracking sheets so parents and guardians can monitor their child's progress at home.", color: 'bg-primary-container/20 text-primary-dim' },
+              { icon: 'school', title: 'Montessori Curriculum', desc: 'Content aligned with the global Montessori curriculum — trusted by educators worldwide.', color: 'bg-tertiary-container/20 text-tertiary' },
             ].map((item) => (
-              <div
-                key={item.title}
-                className="bg-surface-container-lowest rounded-xl p-7 hover:scale-[1.02] transition-transform duration-300 group"
-              >
-                <div
-                  className={`w-12 h-12 ${item.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
-                >
+              <div key={item.title} className="bg-surface-container-lowest rounded-xl p-7 hover:scale-[1.02] transition-transform duration-300 group">
+                <div className={`w-12 h-12 ${item.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   <span className="material-symbols-outlined text-2xl">{item.icon}</span>
                 </div>
                 <h3 className="text-lg font-bold font-headline mb-2">{item.title}</h3>
@@ -443,9 +423,7 @@ export default function WaitlistPage() {
         <section className="py-20 px-6 md:px-8 bg-surface-container-low">
           <div className="max-w-screen-xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">
-                Peek Inside Our Books
-              </h2>
+              <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">Peek Inside Our Books</h2>
               <p className="text-on-surface-variant max-w-lg mx-auto">
                 Browse through pages from each nursery level. Every book is crafted with love and aligned with the Montessori curriculum.
               </p>
@@ -458,15 +436,7 @@ export default function WaitlistPage() {
                 ageRange="Ages 2–3"
                 accentColor="text-primary"
                 accentBg="bg-primary-container/20"
-                images={[
-                  '/images/nursery1-page1.png',
-                  '/images/nursery1-page2.png',
-                  '/images/nursery1-page3.png',
-                  '/images/nursery1-page4.png',
-                  '/images/nursery1-page5.png',
-                  '/images/nursery1-page6.png',
-                  '/images/nursery1-page7.png',
-                ]}
+                images={bookImages.nursery1}
               />
               <BookCarousel
                 title="Creative Arts — Nursery 2"
@@ -474,15 +444,7 @@ export default function WaitlistPage() {
                 ageRange="Ages 3–4"
                 accentColor="text-secondary"
                 accentBg="bg-secondary-container/20"
-                images={[
-                  '/images/nursery2-page1.png',
-                  '/images/nursery2-page2.png',
-                  '/images/nursery2-page3.png',
-                  '/images/nursery2-page4.png',
-                  '/images/nursery2-page5.png',
-                  '/images/nursery2-page6.png',
-                  '/images/nursery2-page7.png',
-                ]}
+                images={bookImages.nursery2}
               />
               <BookCarousel
                 title="Creative Arts — Nursery 3"
@@ -490,43 +452,23 @@ export default function WaitlistPage() {
                 ageRange="Ages 4–5"
                 accentColor="text-tertiary"
                 accentBg="bg-tertiary-container/20"
-                images={[
-                  '/images/nursery3-page1.png',
-                  '/images/nursery3-page2.png',
-                  '/images/nursery3-page3.png',
-                  '/images/nursery3-page4.png',
-                  '/images/nursery3-page5.png',
-                  '/images/nursery3-page6.png',
-                  '/images/nursery3-page7.png',
-                ]}
+                images={bookImages.nursery3}
               />
             </div>
           </div>
         </section>
 
         {/* ============================================ */}
-        {/* BOOKS IN ACTION — Real-Time Photo Grid */}
+        {/* BOOKS IN ACTION */}
         {/* ============================================ */}
         <section className="py-20 px-6 md:px-8 max-w-screen-xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">
-              Our Books in Action
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">Our Books in Action</h2>
             <p className="text-on-surface-variant max-w-lg mx-auto">
               See how children and teachers are using Change Art Gallerie books in classrooms and homes across Nigeria.
             </p>
           </div>
-
-          <RealTimeGrid
-            images={[
-              { src: '/images/realtime-1.png', caption: 'Students exploring colour theory in the classroom' },
-              { src: '/images/realtime-2.png', caption: 'Nursery 1 pupils working on their first art project' },
-              { src: '/images/realtime-3.png', caption: 'A teacher guiding handicraft activities' },
-              { src: '/images/realtime-4.png', caption: 'Creative arts lesson in progress' },
-              { src: '/images/realtime-5.png', caption: 'Children proudly showing their completed work' },
-              { src: '/images/realtime-6.png', caption: 'Parents and kids learning together at home' },
-            ]}
-          />
+          <RealTimeGrid images={galleryImages} />
         </section>
 
         {/* ============================================ */}
@@ -535,25 +477,20 @@ export default function WaitlistPage() {
         <section className="bg-surface-container py-20 px-6 md:px-8">
           <div className="max-w-screen-md mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">
-                Frequently Asked Questions
-              </h2>
-              <p className="text-on-surface-variant">
-                Everything you need to know about our books and delivery.
-              </p>
+              <h2 className="text-3xl md:text-4xl font-bold font-headline mb-3">Frequently Asked Questions</h2>
+              <p className="text-on-surface-variant">Everything you need to know about our books and delivery.</p>
             </div>
 
             <div className="space-y-3">
-              {FAQ_DATA.map((faq) => (
+              {faqs.map((faq) => (
                 <FAQItem key={faq.question} question={faq.question} answer={faq.answer} />
               ))}
             </div>
 
-            {/* Still have questions? */}
             <div className="mt-10 text-center">
               <p className="text-on-surface-variant mb-4">Still have questions?</p>
               <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi! I have a question about your books.")}`}
+                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent('Hi! I have a question about your books.')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-full font-bold text-sm hover:scale-105 active:scale-95 transition-all font-headline"
@@ -568,25 +505,17 @@ export default function WaitlistPage() {
         </section>
 
         {/* ============================================ */}
-        {/* SOCIAL LINKS + CONNECT */}
+        {/* SOCIAL LINKS */}
         {/* ============================================ */}
         <section className="py-16 px-6 md:px-8 max-w-screen-xl mx-auto">
           <div className="bg-surface-container-lowest rounded-xl p-10 md:p-14 text-center ambient-shadow-lg">
-            <h2 className="text-2xl md:text-3xl font-bold font-headline mb-3">
-              Follow Our Journey
-            </h2>
+            <h2 className="text-2xl md:text-3xl font-bold font-headline mb-3">Follow Our Journey</h2>
             <p className="text-on-surface-variant mb-8 max-w-md mx-auto">
               Stay connected for behind-the-scenes content, free teaching tips, and community highlights.
             </p>
 
             <div className="flex flex-wrap justify-center gap-4">
-              {/* Instagram */}
-              <a
-                href={SOCIAL_LINKS.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group"
-              >
+              <a href={SOCIAL_LINKS.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-on-surface-variant group-hover:text-primary transition-colors">
                   <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="2"/>
                   <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
@@ -595,52 +524,28 @@ export default function WaitlistPage() {
                 <span className="font-bold text-sm font-headline">Instagram</span>
               </a>
 
-              {/* Facebook */}
-              <a
-                href={SOCIAL_LINKS.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group"
-              >
+              <a href={SOCIAL_LINKS.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-on-surface-variant group-hover:text-[#1877F2] transition-colors">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
                 <span className="font-bold text-sm font-headline">Facebook</span>
               </a>
 
-              {/* YouTube */}
-              <a
-                href={SOCIAL_LINKS.youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group"
-              >
+              <a href={SOCIAL_LINKS.youtube} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-on-surface-variant group-hover:text-[#FF0000] transition-colors">
                   <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                 </svg>
                 <span className="font-bold text-sm font-headline">YouTube</span>
               </a>
 
-              {/* LinkedIn */}
-              <a
-                href={SOCIAL_LINKS.linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group"
-              >
+              <a href={SOCIAL_LINKS.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-on-surface-variant group-hover:text-[#0A66C2] transition-colors">
                   <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                 </svg>
                 <span className="font-bold text-sm font-headline">LinkedIn</span>
               </a>
 
-              {/* Pinterest */}
-              <a
-                href={SOCIAL_LINKS.pinterest}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group"
-              >
+              <a href={SOCIAL_LINKS.pinterest} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container-high px-5 py-3 rounded-full transition-all hover:scale-105 group">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-on-surface-variant group-hover:text-[#E60023] transition-colors">
                   <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12.017 24c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641 0 12.017 0z"/>
                 </svg>
@@ -659,9 +564,7 @@ export default function WaitlistPage() {
             <div className="absolute bottom-0 right-0 w-64 h-64 bg-black/5 rounded-full translate-x-1/3 translate-y-1/3" />
 
             <div className="relative z-10 max-w-xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-black text-on-primary mb-4 font-headline">
-                Don&apos;t miss out!
-              </h2>
+              <h2 className="text-3xl md:text-4xl font-black text-on-primary mb-4 font-headline">Don&apos;t miss out!</h2>
               <p className="text-on-primary/80 text-lg mb-8">
                 Spots on the waitlist are filling fast. Join now and be the first to get our books when they launch.
               </p>
@@ -674,7 +577,7 @@ export default function WaitlistPage() {
                   Join the Waitlist
                 </a>
                 <a
-                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi! I'd like to learn more about your books.")}`}
+                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hi! I'd like to learn more about your books.")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="border-2 border-white/30 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-white/10 transition-colors font-headline"

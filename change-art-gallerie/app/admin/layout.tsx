@@ -2,10 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+const NAV_LINKS = [
+  { href: '/admin', label: 'Dashboard', icon: 'dashboard' },
+  { href: '/admin/products', label: 'Products', icon: 'inventory_2' },
+  { href: '/admin/orders', label: 'Orders', icon: 'receipt_long' },
+  { href: '/admin/waitlist', label: 'Waitlist', icon: 'people' },
+  { href: '/admin/books', label: 'Book Pages', icon: 'menu_book' },
+  { href: '/admin/gallery', label: 'Gallery', icon: 'photo_library' },
+  { href: '/admin/testimonials', label: 'Testimonials', icon: 'format_quote' },
+  { href: '/admin/faqs', label: 'FAQs', icon: 'quiz' },
+  { href: '/admin/settings', label: 'Settings', icon: 'settings' },
+];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const key = sessionStorage.getItem('admin_key');
@@ -14,7 +29,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    // In production, replace with Supabase Auth
     sessionStorage.setItem('admin_key', password);
     setAuthenticated(true);
   }
@@ -48,33 +62,93 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  function isActive(href: string) {
+    if (href === '/admin') return pathname === '/admin';
+    return pathname.startsWith(href);
+  }
+
   return (
     <div className="min-h-screen bg-surface">
-      {/* Admin nav */}
+      {/* Top header */}
       <header className="bg-surface-container-lowest ambient-shadow sticky top-0 z-50">
         <nav className="max-w-screen-2xl mx-auto px-6 md:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-6">
             <Link href="/admin" className="text-xl font-bold font-headline text-on-surface">
               CAG Admin
             </Link>
-            <div className="hidden md:flex gap-4 text-sm font-medium">
-              <Link href="/admin" className="text-primary font-bold">Dashboard</Link>
-              <Link href="/admin/orders" className="text-on-surface-variant hover:text-primary transition-colors">Orders</Link>
-              <Link href="/admin/waitlist" className="text-on-surface-variant hover:text-primary transition-colors">Waitlist</Link>
-              <Link href="/admin/products" className="text-on-surface-variant hover:text-primary transition-colors">Products</Link>
+            {/* Desktop nav */}
+            <div className="hidden lg:flex gap-1 text-sm font-medium flex-wrap">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-3 py-1.5 rounded-full transition-colors font-headline ${
+                    isActive(link.href)
+                      ? 'bg-primary-container/30 text-primary font-bold'
+                      : 'text-on-surface-variant hover:text-primary hover:bg-surface-container-high'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           </div>
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('admin_key');
-              setAuthenticated(false);
-            }}
-            className="text-sm text-on-surface-variant hover:text-error transition-colors"
-          >
-            Logout
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              className="lg:hidden p-2 rounded-lg hover:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined">
+                {mobileNavOpen ? 'close' : 'menu'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('admin_key');
+                setAuthenticated(false);
+              }}
+              className="text-sm text-on-surface-variant hover:text-error transition-colors hidden md:block"
+            >
+              Logout
+            </button>
+          </div>
         </nav>
+
+        {/* Mobile nav dropdown */}
+        {mobileNavOpen && (
+          <div className="lg:hidden border-t border-outline-variant/10 px-6 py-4 grid grid-cols-3 gap-2">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileNavOpen(false)}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors text-center ${
+                  isActive(link.href)
+                    ? 'bg-primary-container/30 text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                <span className="material-symbols-outlined text-xl">{link.icon}</span>
+                <span className="text-xs font-medium font-headline">{link.label}</span>
+              </Link>
+            ))}
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('admin_key');
+                setAuthenticated(false);
+              }}
+              className="flex flex-col items-center gap-1 p-3 rounded-xl text-error hover:bg-error-container/10 transition-colors"
+            >
+              <span className="material-symbols-outlined text-xl">logout</span>
+              <span className="text-xs font-medium font-headline">Logout</span>
+            </button>
+          </div>
+        )}
       </header>
+
       <main className="max-w-screen-2xl mx-auto px-6 md:px-8 py-8">
         {children}
       </main>

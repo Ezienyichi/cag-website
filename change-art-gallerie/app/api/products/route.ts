@@ -12,11 +12,12 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from('products')
       .select('*')
-      .eq('is_active', true)
+      .eq('in_stock', true)
+      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (category) query = query.eq('category', category);
-    if (featured === 'true') query = query.eq('is_featured', true);
+    if (featured === 'true') query = query.eq('featured', true);
 
     const { data, error } = await query;
 

@@ -1,59 +1,72 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { getProductById, ALL_PRODUCTS } from '@/lib/products';
+import type { CMSProduct } from '@/components/store/ProductGrid';
+
+const PLACEHOLDER = '/images/color-alchemist.png';
+
+const CATEGORY_STORE_LABEL: Record<string, string> = {
+  workbooks: 'School WorkBooks',
+  homeschooling: 'Homeschooling',
+  digital: 'Digital Storybooks',
+};
 
 export default function ProductDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const productId = params.id as string;
-  const product = getProductById(productId);
+
+  const [product, setProduct] = useState<CMSProduct | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<CMSProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   const [quantity, setQuantity] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [activeImage, setActiveImage] = useState(0);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
 
-  if (!product) {
-    return (
-      <>
-        <Navbar />
-        <main className="pt-28 pb-16 px-6 md:px-8 max-w-screen-xl mx-auto min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <span className="material-symbols-outlined text-6xl text-outline-variant mb-4">search_off</span>
-            <h1 className="text-2xl font-bold font-headline mb-2">Product not found</h1>
-            <p className="text-on-surface-variant mb-6">The product you&apos;re looking for doesn&apos;t exist.</p>
-            <Link href="/store/workbooks" className="bg-primary-container text-on-primary-container px-6 py-3 rounded-full font-bold font-headline">
-              Browse Store
-            </Link>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        const all: CMSProduct[] = data.products || [];
+        const found = all.find((p) => p.id === productId);
 
-  const allImages = [product.image, ...product.gallery.filter((img) => img !== product.image)];
-  const relatedProducts = ALL_PRODUCTS.filter((p) => p.store === product.store && p.id !== product.id).slice(0, 3);
+        if (!found) {
+          setNotFound(true);
+          return;
+        }
+
+        setProduct(found);
+        setRelatedProducts(all.filter((p) => p.category === found.category && p.id !== found.id).slice(0, 3));
+      } catch {
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [productId]);
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
+    if (!product) return;
 
     if (!buyerName || !buyerEmail) {
       toast.error('Please fill in your name and email');
       return;
     }
 
-    setLoading(true);
+    setCheckoutLoading(true);
 
     try {
       const res = await fetch('/api/checkout', {
@@ -65,10 +78,10 @@ export default function ProductDetailPage() {
               product: {
                 id: product.id,
                 name: product.name,
-                short_description: product.description,
-                price: product.price * 100, // Naira to kobo
+                short_description: product.description || '',
+                price: product.price, // already in kobo
                 currency: 'NGN',
-                image_url: product.image,
+                image_url: product.image_url || '',
               },
               quantity,
             },
@@ -88,9 +101,52 @@ export default function ProductDetailPage() {
     } catch {
       toast.error('Network error. Please check your connection and try again.');
     } finally {
-      setLoading(false);
+      setCheckoutLoading(false);
     }
   }
+
+  function formatNaira(kobo: number) {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(kobo / 100);
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <main className="pt-28 pb-16 px-6 md:px-8 max-w-screen-xl mx-auto min-h-screen flex items-center justify-center">
+          <div className="text-on-surface-variant">Loading…</div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  if (notFound || !product) {
+    return (
+      <>
+        <Navbar />
+        <main className="pt-28 pb-16 px-6 md:px-8 max-w-screen-xl mx-auto min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-outline-variant mb-4">search_off</span>
+            <h1 className="text-2xl font-bold font-headline mb-2">Product not found</h1>
+            <p className="text-on-surface-variant mb-6">The product you&apos;re looking for doesn&apos;t exist.</p>
+            <Link href="/store/workbooks" className="bg-primary-container text-on-primary-container px-6 py-3 rounded-full font-bold font-headline">
+              Browse Store
+            </Link>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const isDigital = product.category === 'digital' || product.category === 'homeschooling';
+  const storeLabel = CATEGORY_STORE_LABEL[product.category] || product.category;
+  const storeHref = `/store/${product.category}`;
 
   return (
     <>
@@ -100,48 +156,26 @@ export default function ProductDetailPage() {
         <div className="flex items-center gap-2 text-sm text-on-surface-variant mb-8 flex-wrap">
           <Link href="/" className="hover:text-primary transition-colors">Home</Link>
           <span>/</span>
-          <Link href={`/store/${product.store}`} className="hover:text-primary transition-colors capitalize">
-            {product.store === 'workbooks' ? 'School WorkBooks' : product.store === 'homeschooling' ? 'Homeschooling' : 'Digital Storybooks'}
-          </Link>
+          <Link href={storeHref} className="hover:text-primary transition-colors">{storeLabel}</Link>
           <span>/</span>
           <span className="text-on-surface font-medium">{product.name}</span>
         </div>
 
         {/* Product Layout */}
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 mb-16">
-          {/* Left: Image Gallery */}
-          <div>
-            {/* Main image */}
-            <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high mb-4 ambient-shadow">
-              <Image
-                src={allImages[activeImage]}
-                alt={product.name}
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                priority
-              />
-              {product.tag && (
-                <div className="absolute top-4 left-4 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-sm font-bold font-headline">
-                  {product.tag}
-                </div>
-              )}
-            </div>
-
-            {/* Thumbnails */}
-            {allImages.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {allImages.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveImage(i)}
-                    className={`w-20 h-20 rounded-lg overflow-hidden shrink-0 border-2 transition-all ${
-                      i === activeImage ? 'border-primary scale-105' : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <Image src={img} alt={`View ${i + 1}`} width={80} height={80} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+          {/* Left: Image */}
+          <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
+            <Image
+              src={product.image_url || PLACEHOLDER}
+              alt={product.name}
+              fill
+              className="object-contain"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              priority
+            />
+            {product.featured && (
+              <div className="absolute top-4 left-4 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-sm font-bold font-headline">
+                Featured
               </div>
             )}
           </div>
@@ -149,40 +183,29 @@ export default function ProductDetailPage() {
           {/* Right: Product Info */}
           <div>
             <div className="text-xs text-primary font-bold uppercase tracking-wider mb-2 font-headline">
-              {product.category} · Ages {product.ageRange}
+              {storeLabel}
             </div>
             <h1 className="text-3xl md:text-4xl font-bold font-headline mb-4">{product.name}</h1>
-            <p className="text-on-surface-variant text-lg leading-relaxed mb-6">{product.longDescription}</p>
-
-            {/* Features */}
-            <div className="mb-6">
-              <h3 className="font-bold font-headline text-sm uppercase tracking-wider text-on-surface-variant mb-3">What&apos;s Included</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {product.features.map((feature) => (
-                  <div key={feature} className="flex items-center gap-2 text-sm">
-                    <span className="material-symbols-outlined text-tertiary text-base">check_circle</span>
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {product.description && (
+              <p className="text-on-surface-variant text-lg leading-relaxed mb-6">{product.description}</p>
+            )}
 
             {/* Delivery info */}
             <div className="bg-surface-container-low rounded-xl p-4 mb-6">
-              {product.type === 'physical' ? (
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary">local_shipping</span>
-                  <div>
-                    <p className="font-bold text-sm font-headline">Physical Book — Delivered to You</p>
-                    <p className="text-xs text-on-surface-variant">Delivery available across Rivers State and beyond. Distributors in major cities.</p>
-                  </div>
-                </div>
-              ) : (
+              {isDigital ? (
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-tertiary">download</span>
                   <div>
                     <p className="font-bold text-sm font-headline">Digital Download — Instant Access</p>
                     <p className="text-xs text-on-surface-variant">Download immediately after payment. PDF format, read on any device.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-primary">local_shipping</span>
+                  <div>
+                    <p className="font-bold text-sm font-headline">Physical Book — Delivered to You</p>
+                    <p className="text-xs text-on-surface-variant">Delivery available across Rivers State and beyond.</p>
                   </div>
                 </div>
               )}
@@ -191,28 +214,32 @@ export default function ProductDetailPage() {
             {/* Price + Quantity */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <span className="text-3xl font-bold text-primary font-headline">₦{(product.price * quantity).toLocaleString()}</span>
+                <span className="text-3xl font-bold text-primary font-headline">
+                  {formatNaira(product.price * quantity)}
+                </span>
                 {quantity > 1 && (
                   <span className="text-sm text-on-surface-variant ml-2">
-                    (₦{product.price.toLocaleString()} × {quantity})
+                    ({formatNaira(product.price)} × {quantity})
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 bg-surface-container-high rounded-full px-2">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors text-lg font-bold"
-                >
-                  −
-                </button>
-                <span className="w-8 text-center font-bold">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors text-lg font-bold"
-                >
-                  +
-                </button>
-              </div>
+              {!isDigital && (
+                <div className="flex items-center gap-3 bg-surface-container-high rounded-full px-2">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors text-lg font-bold"
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center font-bold">{quantity}</span>
+                  <button
+                    onClick={() => setQuantity(quantity + 1)}
+                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors text-lg font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Checkout Form */}
@@ -222,10 +249,10 @@ export default function ProductDetailPage() {
                 className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined">shopping_cart</span>
-                {product.type === 'physical' ? 'Order Now' : 'Buy & Download'}
+                {isDigital ? 'Buy & Download' : 'Order Now'}
               </button>
             ) : (
-              <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow animate-fade-in-up">
+              <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
                 <h3 className="font-bold font-headline mb-4">Complete Your Order</h3>
                 <form onSubmit={handleCheckout} className="space-y-3">
                   <input
@@ -248,20 +275,20 @@ export default function ProductDetailPage() {
                     type="tel"
                     value={buyerPhone}
                     onChange={(e) => setBuyerPhone(e.target.value)}
-                    placeholder="Phone number (for delivery)"
+                    placeholder="Phone number (for delivery updates)"
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
                   />
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={checkoutLoading}
                     className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed font-headline flex items-center justify-center gap-2"
                   >
-                    {loading ? (
-                      'Redirecting to payment...'
+                    {checkoutLoading ? (
+                      'Redirecting to payment…'
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-lg">lock</span>
-                        Pay ₦{(product.price * quantity).toLocaleString()} with Flutterwave
+                        Pay {formatNaira(product.price * quantity)} with Flutterwave
                       </>
                     )}
                   </button>
@@ -285,13 +312,13 @@ export default function ProductDetailPage() {
                   href={`/store/product/${rp.id}`}
                   className="bg-surface-container-lowest rounded-xl overflow-hidden ambient-shadow hover:scale-[1.02] transition-transform flex flex-col group"
                 >
-                  <div className="h-44 relative">
-                    <Image src={rp.image} alt={rp.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="33vw" />
+                  <div className="h-44 relative bg-surface-container-high">
+                    <Image src={rp.image_url || PLACEHOLDER} alt={rp.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="33vw" />
                   </div>
                   <div className="p-5">
-                    <p className="text-xs text-primary font-bold uppercase tracking-wider mb-1 font-headline">{rp.category}</p>
+                    <p className="text-xs text-primary font-bold uppercase tracking-wider mb-1 font-headline">{storeLabel}</p>
                     <h3 className="font-bold font-headline mb-1">{rp.name}</h3>
-                    <span className="text-lg font-bold text-primary font-headline">₦{rp.price.toLocaleString()}</span>
+                    <span className="text-lg font-bold text-primary font-headline">{formatNaira(rp.price)}</span>
                   </div>
                 </Link>
               ))}
