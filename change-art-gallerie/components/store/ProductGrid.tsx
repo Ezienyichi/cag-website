@@ -14,6 +14,7 @@ export interface CMSProduct {
   featured: boolean;
   in_stock: boolean;
   sort_order: number;
+  delivery_type?: 'physical' | 'download' | 'read_online';
 }
 
 interface ProductGridProps {
@@ -36,6 +37,22 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const PLACEHOLDER = '/images/color-alchemist.png';
 
+function getDeliveryBadge(p: CMSProduct) {
+  if (p.delivery_type === 'download') {
+    return { label: 'Digital Download', cls: 'bg-primary-container/30 text-primary' };
+  }
+  if (p.delivery_type === 'read_online') {
+    return { label: 'Read Online', cls: 'bg-secondary-container/30 text-secondary' };
+  }
+  return { label: 'Hard Copy', cls: 'bg-tertiary-container/30 text-tertiary' };
+}
+
+function getCtaLabel(p: CMSProduct) {
+  if (p.delivery_type === 'download') return 'View & Download';
+  if (p.delivery_type === 'read_online') return 'View & Read';
+  return 'View & Order';
+}
+
 export default function ProductGrid({ products }: ProductGridProps) {
   if (products.length === 0) {
     return (
@@ -49,7 +66,7 @@ export default function ProductGrid({ products }: ProductGridProps) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {products.map((product) => {
-        const isDigital = product.category === 'digital' || product.category === 'homeschooling';
+        const badge = getDeliveryBadge(product);
         return (
           <Link
             key={product.id}
@@ -65,8 +82,12 @@ export default function ProductGrid({ products }: ProductGridProps) {
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
                 sizes="(max-width: 768px) 100vw, 33vw"
               />
+              {/* Delivery type badge */}
+              <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold font-headline ${badge.cls}`}>
+                {badge.label}
+              </div>
               {product.featured && (
-                <div className="absolute top-3 left-3 bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-xs font-bold font-headline">
+                <div className="absolute top-3 right-3 bg-primary-container text-on-primary-container px-2.5 py-1 rounded-full text-xs font-bold font-headline">
                   Featured
                 </div>
               )}
@@ -90,7 +111,7 @@ export default function ProductGrid({ products }: ProductGridProps) {
                   {formatNaira(product.price)}
                 </span>
                 <span className="bg-primary-container text-on-primary-container px-5 py-2 rounded-full font-bold text-sm font-headline group-hover:scale-105 transition-all">
-                  {isDigital ? 'View & Download' : 'View & Order'}
+                  {getCtaLabel(product)}
                 </span>
               </div>
             </div>

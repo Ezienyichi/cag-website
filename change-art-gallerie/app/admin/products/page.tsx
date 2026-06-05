@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import ImageUpload from '@/components/admin/ImageUpload';
+import FileUpload from '@/components/admin/FileUpload';
 
 interface Product {
   id: string;
@@ -15,6 +16,7 @@ interface Product {
   featured: boolean;
   in_stock: boolean;
   sort_order: number;
+  delivery_type: 'physical' | 'download' | 'read_online';
 }
 
 const BLANK = {
@@ -27,6 +29,7 @@ const BLANK = {
   featured: false,
   in_stock: true,
   sort_order: 0,
+  delivery_type: 'physical' as const,
 };
 
 function key() {
@@ -36,6 +39,12 @@ function key() {
 function fmt(kobo: number) {
   return '₦' + (kobo / 100).toLocaleString('en-NG');
 }
+
+const DELIVERY_LABELS: Record<string, { label: string; cls: string }> = {
+  physical: { label: 'Hard Copy', cls: 'bg-tertiary-container/30 text-tertiary' },
+  download: { label: 'Digital Download', cls: 'bg-primary-container/30 text-primary' },
+  read_online: { label: 'Read Online', cls: 'bg-secondary-container/30 text-secondary' },
+};
 
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -54,7 +63,7 @@ export default function ProductsAdminPage() {
       const r = await fetch('/api/admin/products', { headers: { 'x-admin-key': key() } });
       const d = await r.json();
       setProducts(d.products || []);
-    } catch { toast.error('Failed to load'); }
+    } catch { toast.error('Failed to load products'); }
     finally { setLoading(false); }
   }
 
@@ -76,6 +85,7 @@ export default function ProductsAdminPage() {
       featured: p.featured,
       in_stock: p.in_stock,
       sort_order: p.sort_order,
+      delivery_type: p.delivery_type || 'physical',
     });
     setModal(true);
   }
@@ -101,7 +111,10 @@ export default function ProductsAdminPage() {
 
   async function del(p: Product) {
     try {
-      const r = await fetch(`/api/admin/products/${p.id}`, { method: 'DELETE', headers: { 'x-admin-key': key() } });
+      const r = await fetch(`/api/admin/products/${p.id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': key() },
+      });
       if (!r.ok) throw new Error();
       toast.success('Deleted');
       setConfirmDelete(null);
@@ -109,128 +122,148 @@ export default function ProductsAdminPage() {
     } catch { toast.error('Failed to delete'); }
   }
 
+  const needsFile = form.delivery_type === 'download' || form.delivery_type === 'read_online';
+
   return (
     <div>
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold font-headline">Products</h1>
         <button
           onClick={openAdd}
-          className="bg-primary text-on-primary px-5 py-2.5 rounded-full font-bold text-sm font-headline"
+          className="bg-primary text-on-primary px-5 py-2.5 rounded-full font-bold text-sm font-headline flex items-center gap-2 hover:scale-105 transition-all"
         >
-          + Add Product
+          <span className="material-symbols-outlined text-base">add</span>
+          Add Product
         </button>
       </div>
 
-      {/* ── List ── */}
+      {/* Product list */}
       <div className="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
-        {loading && <p className="p-8 text-center text-on-surface-variant">Loading…</p>}
+        {loading && <p className="p-10 text-center text-on-surface-variant">Loading…</p>}
 
         {!loading && products.length === 0 && (
           <div className="p-12 text-center text-on-surface-variant">
-            <p className="text-lg font-bold mb-2">No products yet</p>
-            <p className="mb-6 text-sm">Click "Add Product" to create your first product.</p>
-            <button onClick={openAdd} className="bg-primary text-on-primary px-6 py-3 rounded-full font-bold text-sm">
-              Add Product
+            <span className="material-symbols-outlined text-5xl mb-3 block">inventory_2</span>
+            <p className="font-medium mb-4">No products yet</p>
+            <button onClick={openAdd} className="bg-primary text-on-primary px-5 py-2.5 rounded-full font-bold text-sm font-headline">
+              Add your first product
             </button>
           </div>
         )}
 
-        {!loading && products.length > 0 && products.map((p) => (
-          <div
-            key={p.id}
-            style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}
-          >
-            {/* Thumbnail */}
-            <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', background: '#f0f0f0', flexShrink: 0 }}>
-              {p.image_url
-                ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 11 }}>No img</div>
-              }
-            </div>
+        {!loading && products.length > 0 && products.map((p) => {
+          const badge = DELIVERY_LABELS[p.delivery_type] || DELIVERY_LABELS.physical;
+          return (
+            <div key={p.id} className="flex items-center gap-4 px-5 py-4 border-b border-outline-variant/10 hover:bg-surface-container-low/30 transition-colors">
+              {/* Thumbnail */}
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-surface-container-high shrink-0">
+                {p.image_url
+                  ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
+                      <span className="material-symbols-outlined text-2xl">image</span>
+                    </div>
+                }
+              </div>
 
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</p>
-              <p style={{ fontSize: 13, color: '#666', marginTop: 2 }}>
-                {p.category} &nbsp;·&nbsp; {fmt(p.price)}
-                {p.featured && <span style={{ marginLeft: 8, background: '#feb300', color: '#7b5400', borderRadius: 99, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>Featured</span>}
-                {!p.in_stock && <span style={{ marginLeft: 8, background: '#fde8e0', color: '#b02500', borderRadius: 99, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>Out of stock</span>}
-              </p>
-            </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm truncate">{p.name}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${badge.cls}`}>
+                    {badge.label}
+                  </span>
+                  <span className="text-xs text-on-surface-variant capitalize">{p.category}</span>
+                  <span className="text-sm font-bold text-primary">{fmt(p.price)}</span>
+                </div>
+              </div>
 
-            {/* Actions */}
-            <button
-              onClick={() => openEdit(p)}
-              className="px-4 py-2 rounded-lg bg-surface-container-high text-sm font-medium hover:bg-surface-container"
-              style={{ marginRight: 8 }}
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setConfirmDelete(p)}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-error hover:bg-error-container/20"
-            >
-              Delete
-            </button>
-          </div>
-        ))}
+              {/* Status badges */}
+              <div className="hidden sm:flex items-center gap-2 shrink-0">
+                {p.featured && (
+                  <span className="bg-primary-container/20 text-primary px-2 py-0.5 rounded-full text-xs font-bold">Featured</span>
+                )}
+                {!p.in_stock && (
+                  <span className="bg-error-container/20 text-error px-2 py-0.5 rounded-full text-xs font-bold">Out of Stock</span>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => openEdit(p)}
+                  className="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-on-surface-variant"
+                  title="Edit"
+                >
+                  <span className="material-symbols-outlined text-base">edit</span>
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(p)}
+                  className="p-2 rounded-lg hover:bg-error-container/20 transition-colors text-error"
+                  title="Delete"
+                >
+                  <span className="material-symbols-outlined text-base">delete</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Add / Edit Modal ── */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
-            {/* Modal header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #eee', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700 }}>{editing ? 'Edit Product' : 'Add New Product'}</h2>
-              <button onClick={() => setModal(false)} style={{ fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}>×</button>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-outline-variant/10 sticky top-0 bg-surface-container-lowest z-10">
+              <h2 className="text-xl font-bold font-headline">{editing ? 'Edit Product' : 'Add Product'}</h2>
+              <button onClick={() => setModal(false)} className="p-2 rounded-lg hover:bg-surface-container-high">
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
 
-            {/* Modal form */}
-            <form onSubmit={save} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <form onSubmit={save} className="p-6 space-y-4">
               {/* Name */}
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Product Name *</label>
+                <label className="text-sm font-medium text-on-surface-variant block mb-1">Name *</label>
                 <input
                   required
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Creative Arts — Nursery 1"
                   className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                  placeholder="e.g. Creative Arts Studies — Nursery 1"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Description</label>
+                <label className="text-sm font-medium text-on-surface-variant block mb-1">Description</label>
                 <textarea
                   value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  placeholder="Short description shown on product cards"
                   className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface resize-none"
+                  placeholder="Short description shown on product cards"
                 />
               </div>
 
               {/* Price + Category */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Price (₦ Naira) *</label>
+                  <label className="text-sm font-medium text-on-surface-variant block mb-1">Price (₦ Naira) *</label>
                   <input
                     required
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.01"
                     value={form.price / 100}
                     onChange={e => setForm({ ...form, price: Math.round(parseFloat(e.target.value || '0') * 100) })}
-                    placeholder="3500"
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                    placeholder="3500"
                   />
-                  <p style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Saved as {form.price} kobo</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Stored in kobo: {form.price}</p>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Category *</label>
+                  <label className="text-sm font-medium text-on-surface-variant block mb-1">Category *</label>
                   <select
                     required
                     value={form.category}
@@ -244,7 +277,27 @@ export default function ProductsAdminPage() {
                 </div>
               </div>
 
-              {/* Image upload */}
+              {/* Delivery Type */}
+              <div>
+                <label className="text-sm font-medium text-on-surface-variant block mb-1">Delivery Type *</label>
+                <select
+                  required
+                  value={form.delivery_type}
+                  onChange={e => setForm({ ...form, delivery_type: e.target.value as typeof form.delivery_type })}
+                  className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                >
+                  <option value="physical">Physical (Hard Copy — Delivery)</option>
+                  <option value="download">Digital (Download — Customer gets a file)</option>
+                  <option value="read_online">Digital (Read Online — Embedded viewer, no download)</option>
+                </select>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  {form.delivery_type === 'physical' && 'Customer orders and receives a physical book.'}
+                  {form.delivery_type === 'download' && 'Customer pays and downloads the file after payment.'}
+                  {form.delivery_type === 'read_online' && 'Customer pays and reads the file in the browser. File is not downloadable.'}
+                </p>
+              </div>
+
+              {/* Cover Image */}
               <ImageUpload
                 value={form.image_url}
                 onChange={url => setForm({ ...form, image_url: url })}
@@ -252,56 +305,74 @@ export default function ProductsAdminPage() {
                 label="Cover Image"
               />
 
-              {/* Digital file URL */}
-              {(form.category === 'digital' || form.category === 'homeschooling') && (
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Download File URL</label>
-                  <input
+              {/* Digital File Upload — only for download or read_online */}
+              {needsFile && (
+                <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/30">
+                  <FileUpload
                     value={form.file_url}
-                    onChange={e => setForm({ ...form, file_url: e.target.value })}
-                    placeholder="https://… (Supabase Storage URL)"
-                    className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                    onChange={url => setForm({ ...form, file_url: url })}
+                    bucket="digital-files"
+                    label={
+                      form.delivery_type === 'download'
+                        ? 'Digital File to Download (PDF, EPUB, etc.)'
+                        : 'Digital File to Read Online (PDF)'
+                    }
                   />
+                  {form.delivery_type === 'read_online' && (
+                    <p className="text-xs text-on-surface-variant mt-2 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-base text-secondary">lock</span>
+                      This file will be embedded in a viewer. Customers cannot download it directly.
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Sort order */}
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Sort Order</label>
-                <input
-                  type="number"
-                  value={form.sort_order}
-                  onChange={e => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
-                />
-              </div>
-
-              {/* Toggles */}
-              <div style={{ display: 'flex', gap: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
-                  <input type="checkbox" checked={form.in_stock} onChange={e => setForm({ ...form, in_stock: e.target.checked })} style={{ width: 16, height: 16 }} />
-                  In Stock
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
-                  <input type="checkbox" checked={form.featured} onChange={e => setForm({ ...form, featured: e.target.checked })} style={{ width: 16, height: 16 }} />
-                  Featured on Homepage
-                </label>
+              {/* Sort order + toggles */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-on-surface-variant block mb-1">Sort Order</label>
+                  <input
+                    type="number"
+                    value={form.sort_order}
+                    onChange={e => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                  />
+                </div>
+                <div className="flex flex-col gap-3 pt-6">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form.in_stock}
+                      onChange={e => setForm({ ...form, in_stock: e.target.checked })}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    <span className="text-sm font-medium">In Stock / Active</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form.featured}
+                      onChange={e => setForm({ ...form, featured: e.target.checked })}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    <span className="text-sm font-medium">Featured on homepage</span>
+                  </label>
+                </div>
               </div>
 
               {/* Buttons */}
-              <div style={{ display: 'flex', gap: 12, paddingTop: 8 }}>
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModal(false)}
-                  style={{ flex: 1, padding: '12px', borderRadius: 99, border: '1.5px solid #ddd', background: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
+                  className="flex-1 py-3 rounded-full border border-outline-variant text-sm font-bold font-headline hover:bg-surface-container-high transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="bg-primary text-on-primary rounded-full font-bold text-sm disabled:opacity-60"
-                  style={{ flex: 1, padding: '12px', borderRadius: 99, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
+                  className="flex-1 py-3 rounded-full bg-primary text-on-primary text-sm font-bold font-headline disabled:opacity-60"
                 >
                   {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Product'}
                 </button>
@@ -311,24 +382,24 @@ export default function ProductsAdminPage() {
         </div>
       )}
 
-      {/* ── Delete Confirm ── */}
+      {/* Delete confirmation */}
       {confirmDelete && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, maxWidth: 400, width: '100%', padding: 24 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Delete Product?</h2>
-            <p style={{ color: '#666', fontSize: 14, marginBottom: 20 }}>
-              &ldquo;{confirmDelete.name}&rdquo; will be permanently removed. This cannot be undone.
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold font-headline mb-2">Delete Product?</h2>
+            <p className="text-on-surface-variant text-sm mb-6">
+              &ldquo;{confirmDelete.name}&rdquo; will be permanently removed.
             </p>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div className="flex gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
-                style={{ flex: 1, padding: '12px', borderRadius: 99, border: '1.5px solid #ddd', background: 'none', cursor: 'pointer', fontWeight: 700 }}
+                className="flex-1 py-3 rounded-full border border-outline-variant text-sm font-bold font-headline hover:bg-surface-container-high transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => del(confirmDelete)}
-                style={{ flex: 1, padding: '12px', borderRadius: 99, background: '#b02500', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                className="flex-1 py-3 rounded-full bg-error text-on-error text-sm font-bold font-headline"
               >
                 Delete
               </button>

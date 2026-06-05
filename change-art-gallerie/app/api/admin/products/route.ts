@@ -8,7 +8,11 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = createServerClient();
-  const { data, error } = await supabase.from('products').select('*').order('sort_order').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('sort_order')
+    .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ products: data });
 }
@@ -27,6 +31,7 @@ export async function POST(req: NextRequest) {
     featured: body.featured ?? false,
     in_stock: body.in_stock ?? true,
     sort_order: body.sort_order ?? 0,
+    delivery_type: body.delivery_type || 'physical',
   }).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ product: data }, { status: 201 });

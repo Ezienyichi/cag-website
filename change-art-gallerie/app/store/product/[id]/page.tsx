@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import type { CMSProduct } from '@/components/store/ProductGrid';
+import { createBrowserClient } from '@/lib/supabase';
 
 const PLACEHOLDER = '/images/color-alchemist.png';
 
@@ -16,6 +17,39 @@ const CATEGORY_STORE_LABEL: Record<string, string> = {
   homeschooling: 'Homeschooling',
   digital: 'Digital Storybooks',
 };
+
+const DELIVERY_INFO = {
+  physical: {
+    icon: 'local_shipping',
+    iconColor: 'text-tertiary',
+    title: 'Physical Book — Delivered to You',
+    sub: 'Delivery available across Rivers State and beyond.',
+    badge: 'Hard Copy',
+    badgeCls: 'bg-tertiary-container/30 text-tertiary',
+  },
+  download: {
+    icon: 'download',
+    iconColor: 'text-primary',
+    title: 'Digital Download — Instant Access',
+    sub: 'Download your file immediately after payment. PDF format, read on any device.',
+    badge: 'Digital Download',
+    badgeCls: 'bg-primary-container/30 text-primary',
+  },
+  read_online: {
+    icon: 'menu_book',
+    iconColor: 'text-secondary',
+    title: 'Read Online — Browser Access',
+    sub: 'Read this book in your browser right after payment. No download needed.',
+    badge: 'Read Online',
+    badgeCls: 'bg-secondary-container/30 text-secondary',
+  },
+} as const;
+
+function getCtaLabel(deliveryType: string) {
+  if (deliveryType === 'download') return 'Buy & Download';
+  if (deliveryType === 'read_online') return 'Buy & Read Online';
+  return 'Order Now';
+}
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -36,23 +70,29 @@ export default function ProductDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/products');
-        const data = await res.json();
-        const all: CMSProduct[] = data.products || [];
-        const found = all.find((p) => p.id === productId);
+        const supabase = createBrowserClient();
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .single();
 
-        if (!found) {
-          setNotFound(true);
-          return;
-        }
+        if (error || !data) { setNotFound(true); return; }
 
-        setProduct(found);
-        setRelatedProducts(all.filter((p) => p.category === found.category && p.id !== found.id).slice(0, 3));
-      } catch {
-        setNotFound(true);
-      } finally {
-        setLoading(false);
-      }
+        setProduct(data as CMSProduct);
+
+        const { data: related } = await supabase
+          .from('products')
+          .select('*')
+          .eq('category', data.category)
+          .eq('in_stock', true)
+          .neq('id', productId)
+          .order('sort_order')
+          .limit(3);
+
+        setRelatedProducts((related as CMSProduct[]) || []);
+      } catch { setNotFound(true); }
+      finally { setLoading(false); }
     }
     load();
   }, [productId]);
@@ -60,57 +100,43 @@ export default function ProductDetailPage() {
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
     if (!product) return;
-
-    if (!buyerName || !buyerEmail) {
-      toast.error('Please fill in your name and email');
-      return;
-    }
+    if (!buyerName || !buyerEmail) { toast.error('Please fill in your name and email'); return; }
 
     setCheckoutLoading(true);
-
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: [
-            {
-              product: {
-                id: product.id,
-                name: product.name,
-                short_description: product.description || '',
-                price: product.price, // already in kobo
-                currency: 'NGN',
-                image_url: product.image_url || '',
-              },
-              quantity,
+          items: [{
+            product: {
+              id: product.id,
+              name: product.name,
+              short_description: product.description || '',
+              price: product.price,
+              currency: 'NGN',
+              image_url: product.image_url || '',
+              delivery_type: product.delivery_type || 'physical',
             },
-          ],
+            quantity,
+          }],
           customerEmail: buyerEmail,
           customerName: buyerName,
         }),
       });
 
       const data = await res.json();
-
       if (data.paymentLink) {
         window.location.href = data.paymentLink;
       } else {
         toast.error(data.error || 'Failed to create payment. Please try again.');
       }
-    } catch {
-      toast.error('Network error. Please check your connection and try again.');
-    } finally {
-      setCheckoutLoading(false);
-    }
+    } catch { toast.error('Network error. Please check your connection and try again.'); }
+    finally { setCheckoutLoading(false); }
   }
 
   function formatNaira(kobo: number) {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-    }).format(kobo / 100);
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(kobo / 100);
   }
 
   if (loading) {
@@ -144,7 +170,9 @@ export default function ProductDetailPage() {
     );
   }
 
-  const isDigital = product.category === 'digital' || product.category === 'homeschooling';
+  const deliveryType = product.delivery_type || 'physical';
+  const isPhysical = deliveryType === 'physical';
+  const deliveryInfo = DELIVERY_INFO[deliveryType as keyof typeof DELIVERY_INFO] || DELIVERY_INFO.physical;
   const storeLabel = CATEGORY_STORE_LABEL[product.category] || product.category;
   const storeHref = `/store/${product.category}`;
 
@@ -173,14 +201,18 @@ export default function ProductDetailPage() {
               sizes="(max-width: 1024px) 100vw, 50vw"
               priority
             />
+            {/* Delivery badge */}
+            <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-bold font-headline ${deliveryInfo.badgeCls}`}>
+              {deliveryInfo.badge}
+            </div>
             {product.featured && (
-              <div className="absolute top-4 left-4 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-sm font-bold font-headline">
+              <div className="absolute top-4 right-4 bg-primary-container text-on-primary-container px-3 py-1.5 rounded-full text-xs font-bold font-headline">
                 Featured
               </div>
             )}
           </div>
 
-          {/* Right: Product Info */}
+          {/* Right: Info */}
           <div>
             <div className="text-xs text-primary font-bold uppercase tracking-wider mb-2 font-headline">
               {storeLabel}
@@ -190,40 +222,30 @@ export default function ProductDetailPage() {
               <p className="text-on-surface-variant text-lg leading-relaxed mb-6">{product.description}</p>
             )}
 
-            {/* Delivery info */}
+            {/* Delivery info card */}
             <div className="bg-surface-container-low rounded-xl p-4 mb-6">
-              {isDigital ? (
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-tertiary">download</span>
-                  <div>
-                    <p className="font-bold text-sm font-headline">Digital Download — Instant Access</p>
-                    <p className="text-xs text-on-surface-variant">Download immediately after payment. PDF format, read on any device.</p>
-                  </div>
+              <div className="flex items-center gap-3">
+                <span className={`material-symbols-outlined ${deliveryInfo.iconColor}`}>{deliveryInfo.icon}</span>
+                <div>
+                  <p className="font-bold text-sm font-headline">{deliveryInfo.title}</p>
+                  <p className="text-xs text-on-surface-variant">{deliveryInfo.sub}</p>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary">local_shipping</span>
-                  <div>
-                    <p className="font-bold text-sm font-headline">Physical Book — Delivered to You</p>
-                    <p className="text-xs text-on-surface-variant">Delivery available across Rivers State and beyond.</p>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
-            {/* Price + Quantity */}
+            {/* Price + Quantity (only physical gets quantity selector) */}
             <div className="flex items-center justify-between mb-6">
               <div>
                 <span className="text-3xl font-bold text-primary font-headline">
-                  {formatNaira(product.price * quantity)}
+                  {formatNaira(product.price * (isPhysical ? quantity : 1))}
                 </span>
-                {quantity > 1 && (
+                {isPhysical && quantity > 1 && (
                   <span className="text-sm text-on-surface-variant ml-2">
                     ({formatNaira(product.price)} × {quantity})
                   </span>
                 )}
               </div>
-              {!isDigital && (
+              {isPhysical && (
                 <div className="flex items-center gap-3 bg-surface-container-high rounded-full px-2">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -242,23 +264,25 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Checkout Form */}
+            {/* CTA / Checkout Form */}
             {!showCheckout ? (
               <button
                 onClick={() => setShowCheckout(true)}
                 className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
               >
-                <span className="material-symbols-outlined">shopping_cart</span>
-                {isDigital ? 'Buy & Download' : 'Order Now'}
+                <span className="material-symbols-outlined">
+                  {deliveryType === 'download' ? 'download' : deliveryType === 'read_online' ? 'menu_book' : 'shopping_cart'}
+                </span>
+                {getCtaLabel(deliveryType)}
               </button>
             ) : (
               <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
-                <h3 className="font-bold font-headline mb-4">Complete Your Order</h3>
+                <h3 className="font-bold font-headline mb-4">Complete Your Purchase</h3>
                 <form onSubmit={handleCheckout} className="space-y-3">
                   <input
                     type="text"
                     value={buyerName}
-                    onChange={(e) => setBuyerName(e.target.value)}
+                    onChange={e => setBuyerName(e.target.value)}
                     placeholder="Your full name"
                     required
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
@@ -266,29 +290,29 @@ export default function ProductDetailPage() {
                   <input
                     type="email"
                     value={buyerEmail}
-                    onChange={(e) => setBuyerEmail(e.target.value)}
-                    placeholder="Your email address"
+                    onChange={e => setBuyerEmail(e.target.value)}
+                    placeholder="Your email address (for order confirmation)"
                     required
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
                   />
-                  <input
-                    type="tel"
-                    value={buyerPhone}
-                    onChange={(e) => setBuyerPhone(e.target.value)}
-                    placeholder="Phone number (for delivery updates)"
-                    className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
-                  />
+                  {isPhysical && (
+                    <input
+                      type="tel"
+                      value={buyerPhone}
+                      onChange={e => setBuyerPhone(e.target.value)}
+                      placeholder="Phone number (for delivery updates)"
+                      className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
+                    />
+                  )}
                   <button
                     type="submit"
                     disabled={checkoutLoading}
-                    className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed font-headline flex items-center justify-center gap-2"
+                    className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 font-headline flex items-center justify-center gap-2"
                   >
-                    {checkoutLoading ? (
-                      'Redirecting to payment…'
-                    ) : (
+                    {checkoutLoading ? 'Redirecting to payment…' : (
                       <>
                         <span className="material-symbols-outlined text-lg">lock</span>
-                        Pay {formatNaira(product.price * quantity)} with Flutterwave
+                        Pay {formatNaira(product.price * (isPhysical ? quantity : 1))} with Flutterwave
                       </>
                     )}
                   </button>
@@ -306,22 +330,27 @@ export default function ProductDetailPage() {
           <div>
             <h2 className="text-2xl font-bold font-headline mb-6">You May Also Like</h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {relatedProducts.map((rp) => (
-                <Link
-                  key={rp.id}
-                  href={`/store/product/${rp.id}`}
-                  className="bg-surface-container-lowest rounded-xl overflow-hidden ambient-shadow hover:scale-[1.02] transition-transform flex flex-col group"
-                >
-                  <div className="h-44 relative bg-surface-container-high">
-                    <Image src={rp.image_url || PLACEHOLDER} alt={rp.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="33vw" />
-                  </div>
-                  <div className="p-5">
-                    <p className="text-xs text-primary font-bold uppercase tracking-wider mb-1 font-headline">{storeLabel}</p>
-                    <h3 className="font-bold font-headline mb-1">{rp.name}</h3>
-                    <span className="text-lg font-bold text-primary font-headline">{formatNaira(rp.price)}</span>
-                  </div>
-                </Link>
-              ))}
+              {relatedProducts.map((rp) => {
+                const rpDelivery = DELIVERY_INFO[(rp.delivery_type || 'physical') as keyof typeof DELIVERY_INFO] || DELIVERY_INFO.physical;
+                return (
+                  <Link
+                    key={rp.id}
+                    href={`/store/product/${rp.id}`}
+                    className="bg-surface-container-lowest rounded-xl overflow-hidden ambient-shadow hover:scale-[1.02] transition-transform flex flex-col group"
+                  >
+                    <div className="h-44 relative bg-surface-container-high">
+                      <Image src={rp.image_url || PLACEHOLDER} alt={rp.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="33vw" />
+                      <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold ${rpDelivery.badgeCls}`}>
+                        {rpDelivery.badge}
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="font-bold font-headline mb-1">{rp.name}</h3>
+                      <span className="text-lg font-bold text-primary font-headline">{formatNaira(rp.price)}</span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
