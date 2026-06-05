@@ -45,7 +45,7 @@ export default function Navbar() {
             Resources
           </Link>
           <Link
-            href="/#about"
+            href="/about"
             className="text-on-surface hover:text-primary transition-colors"
           >
             About
@@ -95,7 +95,7 @@ export default function Navbar() {
           <div className="flex flex-col gap-4 font-headline font-bold text-base">
             <Link href="/#collection" onClick={() => setMobileOpen(false)} className="py-2 text-primary">Collection</Link>
             <Link href="/#benefits" onClick={() => setMobileOpen(false)} className="py-2 text-on-surface">Resources</Link>
-            <Link href="/#about" onClick={() => setMobileOpen(false)} className="py-2 text-on-surface">About</Link>
+            <Link href="/about" onClick={() => setMobileOpen(false)} className="py-2 text-on-surface">About</Link>
             <Link href="/#testimonials" onClick={() => setMobileOpen(false)} className="py-2 text-on-surface">Testimonials</Link>
             <a href="/waitlist" onClick={() => setMobileOpen(false)} className="py-2 text-primary">Join Waitlist</a>
           </div>
