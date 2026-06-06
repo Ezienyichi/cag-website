@@ -11,14 +11,20 @@ interface Props {
 
 export default function ImageUpload({ value, onChange, bucket, label = 'Image' }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
   const ref = useRef<HTMLInputElement>(null);
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError('');
     setUploading(true);
     try {
       const key = sessionStorage.getItem('admin_key') || '';
+      if (!key) {
+        setError('Not authenticated. Please log out and log in again.');
+        return;
+      }
       const fd = new FormData();
       fd.append('file', file);
       fd.append('bucket', bucket);
@@ -28,7 +34,17 @@ export default function ImageUpload({ value, onChange, bucket, label = 'Image' }
         body: fd,
       });
       const json = await res.json();
-      if (json.url) onChange(json.url);
+      if (!res.ok || !json.url) {
+        const msg = json.error || `Upload failed (${res.status})`;
+        console.error('[ImageUpload] Upload error:', msg, '| bucket:', bucket, '| status:', res.status);
+        setError(msg);
+        return;
+      }
+      onChange(json.url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error — could not reach server';
+      console.error('[ImageUpload] Network error:', err);
+      setError(msg);
     } finally {
       setUploading(false);
       if (ref.current) ref.current.value = '';
@@ -43,7 +59,7 @@ export default function ImageUpload({ value, onChange, bucket, label = 'Image' }
           <img src={value} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={() => { onChange(''); setError(''); }}
             style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, borderRadius: '50%', background: '#b02500', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, lineHeight: '22px', textAlign: 'center' }}
           >×</button>
         </div>
@@ -55,12 +71,18 @@ export default function ImageUpload({ value, onChange, bucket, label = 'Image' }
       <input ref={ref} type="file" accept="image/*" onChange={pick} style={{ display: 'none' }} />
       <button
         type="button"
-        onClick={() => ref.current?.click()}
+        onClick={() => { setError(''); ref.current?.click(); }}
         disabled={uploading}
         className="px-4 py-2 bg-surface-container-high rounded-lg text-sm font-medium hover:bg-surface-container transition-colors disabled:opacity-50"
       >
         {uploading ? 'Uploading…' : 'Choose Image'}
       </button>
+      {error && (
+        <p className="mt-2 text-xs text-error bg-error-container/20 px-3 py-2 rounded-lg flex items-start gap-1">
+          <span className="material-symbols-outlined text-sm shrink-0 mt-0.5">error</span>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
