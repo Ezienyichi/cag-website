@@ -4,6 +4,7 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: '*.supabase.co' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
   },
   eslint: {
@@ -11,6 +12,11 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
 };
 
