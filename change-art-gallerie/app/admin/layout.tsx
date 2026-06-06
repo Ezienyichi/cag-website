@@ -19,6 +19,8 @@ const NAV_LINKS = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathname = usePathname();
 
@@ -27,34 +29,65 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (key) setAuthenticated(true);
   }, []);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    sessionStorage.setItem('admin_key', password);
-    setAuthenticated(true);
+    setLoginError('');
+    setLoggingIn(true);
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        sessionStorage.setItem('admin_key', data.token);
+        setAuthenticated(true);
+      } else {
+        setLoginError(data.error || 'Incorrect password');
+      }
+    } catch {
+      setLoginError('Login failed. Please try again.');
+    } finally {
+      setLoggingIn(false);
+    }
   }
 
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center px-4">
         <div className="bg-surface-container-lowest rounded-xl p-8 md:p-10 max-w-sm w-full ambient-shadow">
+          <div className="w-12 h-12 bg-primary-container/20 rounded-xl flex items-center justify-center mb-4">
+            <span className="material-symbols-outlined text-2xl text-primary">lock</span>
+          </div>
           <h1 className="text-2xl font-bold font-headline mb-2">Admin Login</h1>
           <p className="text-on-surface-variant text-sm mb-6">
-            Enter your service role key to access the dashboard.
+            Enter your admin password to access the dashboard.
           </p>
           <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Service role key"
-              className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all"
-              required
-            />
+            <div>
+              <label className="block text-sm font-medium text-on-surface-variant mb-1">
+                Admin Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setLoginError(''); }}
+                placeholder="Enter admin password"
+                className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all"
+                required
+                autoFocus
+              />
+            </div>
+            {loginError && (
+              <p className="text-sm text-error bg-error-container/20 px-3 py-2 rounded-lg">{loginError}</p>
+            )}
             <button
               type="submit"
-              className="w-full bg-primary-container text-on-primary-container py-3 rounded-full font-bold font-headline"
+              disabled={loggingIn}
+              className="w-full bg-primary-container text-on-primary-container py-3 rounded-full font-bold font-headline disabled:opacity-60"
             >
-              Login
+              {loggingIn ? 'Verifying…' : 'Login'}
             </button>
           </form>
         </div>
