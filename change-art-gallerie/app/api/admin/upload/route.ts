@@ -1,60 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import cloudinary from '@/lib/cloudinary';
+import { Readable } from 'stream';
 
-function auth(req: NextRequest) {
-  const key = req.headers.get('x-admin-key');
-  const expected = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!expected) {
-    console.error('[upload] SUPABASE_SERVICE_ROLE_KEY env var is not set');
-    return false;
-  }
-  return key === expected;
-}
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  if (!auth(req)) {
-    console.error('[upload] Unauthorized — x-admin-key did not match');
-    return NextResponse.json({ error: 'Unauthorized. Check your admin session.' }, { status: 401 });
-  }
-
   try {
-    const fd = await req.formData();
-    const file = fd.get('file') as File | null;
-    const bucket = fd.get('bucket') as string | null;
-
-    if (!file || !bucket) {
-      console.error('[upload] Missing file or bucket. file:', !!file, 'bucket:', bucket);
-      return NextResponse.json({ error: 'Missing file or bucket' }, { status: 400 });
+    const key = req.headers.get('x-admin-key');
+    if (key !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[upload] Unauthorized — x-admin-key did not match');
+      return NextResponse.json({ error: 'Unauthorized. Check your admin session.' }, { status: 401 });
     }
 
-    console.log(`[upload] Uploading "${file.name}" (${file.size} bytes, ${file.type}) to bucket "${bucket}"`);
+    const formData = await req.formData();
+    const file = formData.get('file') as File | null;
+    const folder = (formData.get('bucket') as string | null) || 'general';
 
-    const supabase = createServerClient();
-    const ext = file.name.split('.').pop() || 'bin';
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const { error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(name, buffer, { contentType: file.type || 'application/octet-stream' });
-
-    if (uploadError) {
-      console.error(`[upload] Supabase storage error for bucket "${bucket}":`, uploadError.message);
-      // Provide a clearer message for common errors
-      if (uploadError.message.includes('Bucket not found')) {
-        return NextResponse.json(
-          { error: `Storage bucket "${bucket}" does not exist. Create it in Supabase Dashboard → Storage.` },
-          { status: 500 }
-        );
-      }
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    if (!file) {
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(name);
-    console.log(`[upload] Success: ${data.publicUrl}`);
-    return NextResponse.json({ url: data.publicUrl });
-  } catch (e) {
-    console.error('[upload] Unexpected error:', e);
-    return NextResponse.json({ error: 'Server error during upload' }, { status: 500 });
+    console.log(`[upload] Uploading "${file.name}" (${file.size} bytes, ${file.type}) to folder "${folder}"`);
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const isPDF = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+    const isDocument = isPDF || ['epub', 'doc', 'docx'].some(ext => file.name.endsWith(`.${ext}`));
+
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          resource_type: isDocument ? 'raw' : 'image',
+        },
+        (error, result) => {
+          if (error) {
+            console.error('[upload] Cloudinary error:', error);
+            reject(error);
+          } else {
+            resolve(result as { secure_url: string });
+          }
+        }
+      );
+
+      const readable = new Readable();
+      readable.push(buffer);
+      readable.push(null);
+      readable.pipe(stream);
+    });
+
+    console.log(`[upload] Success: ${result.secure_url}`);
+    return NextResponse.json({ url: result.secure_url });
+  } catch (err: any) {
+    console.error('[upload] Unexpected error:', err);
+    return NextResponse.json({ error: err.message || 'Upload failed' }, { status: 500 });
   }
 }
