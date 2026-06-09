@@ -10,20 +10,28 @@ import { createBrowserClient } from '@/lib/supabase';
 export default function WorkbooksStorePage() {
   const [products, setProducts] = useState<CMSProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
         const supabase = createBrowserClient();
-        const { data } = await supabase
+        const { data, error: sbError } = await supabase
           .from('products')
           .select('*')
           .eq('category', 'workbooks')
           .eq('in_stock', true)
           .order('sort_order', { ascending: true });
-        setProducts((data as CMSProduct[]) || []);
-      } catch {
-        // silently use empty list
+
+        if (sbError) {
+          console.error('[workbooks] Supabase error:', sbError);
+          setError(sbError.message);
+        } else {
+          setProducts((data as CMSProduct[]) || []);
+        }
+      } catch (err: any) {
+        console.error('[workbooks] Network error:', err);
+        setError(err?.message || 'Failed to load products');
       } finally {
         setLoading(false);
       }
@@ -77,11 +85,22 @@ export default function WorkbooksStorePage() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && (
           <div className="text-center py-20 text-on-surface-variant">Loading products…</div>
-        ) : (
-          <ProductGrid products={products} />
         )}
+
+        {!loading && error && (
+          <div className="bg-error-container/20 border border-error/20 rounded-xl p-6 text-center">
+            <span className="material-symbols-outlined text-3xl text-error mb-2 block">warning</span>
+            <p className="font-bold text-error mb-1">Could not load products</p>
+            <p className="text-sm text-on-surface-variant">{error}</p>
+            <p className="text-xs text-on-surface-variant mt-3">
+              If this persists, make sure the Supabase <code className="bg-surface-container-high px-1 rounded">products</code> table exists and has public read access enabled.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && <ProductGrid products={products} />}
 
         <div className="mt-16 bg-surface-container-low rounded-xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
