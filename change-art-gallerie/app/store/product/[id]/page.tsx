@@ -207,12 +207,12 @@ export default function ProductDetailPage() {
           {/* Left: Image gallery */}
           <div className="flex flex-col gap-3">
             {/* Main (active) image */}
-            <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
+            <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
               <Image
                 src={activeImage}
                 alt={product.name}
                 fill
-                className="object-contain transition-opacity duration-200"
+                className="object-cover transition-opacity duration-200"
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 priority
               />
@@ -229,7 +229,7 @@ export default function ProductDetailPage() {
 
             {/* Thumbnail strip — only rendered when there are extra images */}
             {extraImages.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <div className="flex gap-2 overflow-x-auto py-2">
                 {/* Cover image thumbnail */}
                 {(() => {
                   const coverSrc = product.image_url || PLACEHOLDER;
@@ -238,8 +238,8 @@ export default function ProductDetailPage() {
                     <button
                       type="button"
                       onClick={() => setActiveImage(coverSrc)}
-                      className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                        isActive ? 'border-primary scale-105' : 'border-transparent hover:border-outline-variant'
+                      className={`shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden cursor-pointer transition-all ${
+                        isActive ? 'ring-2 ring-primary' : 'opacity-70 hover:opacity-100'
                       }`}
                     >
                       <img src={coverSrc} alt="Cover" className="w-full h-full object-cover" />
@@ -255,8 +255,8 @@ export default function ProductDetailPage() {
                       key={img.id}
                       type="button"
                       onClick={() => setActiveImage(img.image_url)}
-                      className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                        isActive ? 'border-primary scale-105' : 'border-transparent hover:border-outline-variant'
+                      className={`shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden cursor-pointer transition-all ${
+                        isActive ? 'ring-2 ring-primary' : 'opacity-70 hover:opacity-100'
                       }`}
                     >
                       <img src={img.image_url} alt="" className="w-full h-full object-cover" />

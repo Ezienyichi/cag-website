@@ -364,23 +364,18 @@ export default function ProductsAdminPage() {
                   )}
 
                   {!imagesLoading && extraImages.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
+                    <div className="grid grid-cols-4 gap-2 mb-3">
                       {extraImages.map(img => (
-                        <div key={img.id} className="relative group">
+                        <div key={img.id} className="relative w-full aspect-square rounded-lg overflow-hidden">
                           <img
                             src={img.image_url}
                             alt=""
-                            style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                            className="w-full h-full object-cover"
                           />
                           <button
                             type="button"
                             onClick={() => deleteExtraImage(img.id)}
-                            style={{
-                              position: 'absolute', top: -6, right: -6,
-                              width: 20, height: 20, borderRadius: '50%',
-                              background: '#b02500', color: '#fff', border: 'none',
-                              cursor: 'pointer', fontSize: 12, lineHeight: '20px', textAlign: 'center',
-                            }}
+                            className="absolute top-1 right-1 bg-error text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:scale-110 transition-transform"
                           >×</button>
                         </div>
                       ))}
