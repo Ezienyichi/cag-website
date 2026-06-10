@@ -1,6 +1,14 @@
 import Image from 'next/image';
 
-export default function HeroSection() {
+const DEFAULT_BANNER = '/images/hero-kids.png';
+
+interface HeroSectionProps {
+  bannerUrl?: string;
+}
+
+export default function HeroSection({ bannerUrl }: HeroSectionProps) {
+  const imageSrc = bannerUrl || DEFAULT_BANNER;
+
   return (
     <section className="relative px-6 md:px-8 py-16 md:py-32 max-w-screen-2xl mx-auto flex flex-col md:flex-row items-center gap-12">
       <div className="flex-1 space-y-8 z-10">
@@ -57,12 +65,13 @@ export default function HeroSection() {
 
         <div className="relative rounded-xl overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-500">
           <Image
-            src="/images/hero-kids.png"
+            src={imageSrc}
             alt="Creative kids drawing"
             width={600}
             height={750}
             className="w-full aspect-[4/5] object-cover"
             priority
+            unoptimized={imageSrc.startsWith('https://res.cloudinary.com')}
           />
         </div>
 

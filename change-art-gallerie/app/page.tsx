@@ -23,14 +23,31 @@ async function getFeaturedTestimonials(): Promise<CMSTestimonial[]> {
   }
 }
 
+async function getHeroBannerUrl(): Promise<string | undefined> {
+  try {
+    const supabase = createServerClient();
+    const { data } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'hero_banner_url')
+      .single();
+    return data?.value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function HomePage() {
-  const testimonials = await getFeaturedTestimonials();
+  const [testimonials, heroBannerUrl] = await Promise.all([
+    getFeaturedTestimonials(),
+    getHeroBannerUrl(),
+  ]);
 
   return (
     <>
       <Navbar />
       <main className="pt-24 overflow-x-hidden">
-        <HeroSection />
+        <HeroSection bannerUrl={heroBannerUrl} />
         <BenefitsSection />
         <CollectionSection />
         <HowItWorksSection />

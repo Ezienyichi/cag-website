@@ -2,13 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import ImageUpload from '@/components/admin/ImageUpload';
 
-interface Settings { whatsapp_number: string; youtube_video_id: string; hero_title: string; hero_subtitle: string; }
+interface Settings {
+  whatsapp_number: string;
+  youtube_video_id: string;
+  hero_title: string;
+  hero_subtitle: string;
+  hero_banner_url: string;
+}
 
 function key() { return typeof window !== 'undefined' ? sessionStorage.getItem('admin_key') || '' : ''; }
 
 export default function SettingsAdminPage() {
-  const [settings, setSettings] = useState<Settings>({ whatsapp_number: '', youtube_video_id: '', hero_title: '', hero_subtitle: '' });
+  const [settings, setSettings] = useState<Settings>({
+    whatsapp_number: '',
+    youtube_video_id: '',
+    hero_title: '',
+    hero_subtitle: '',
+    hero_banner_url: '',
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,6 +36,7 @@ export default function SettingsAdminPage() {
         youtube_video_id: d.settings.youtube_video_id || '',
         hero_title: d.settings.hero_title || '',
         hero_subtitle: d.settings.hero_subtitle || '',
+        hero_banner_url: d.settings.hero_banner_url || '',
       });
     } catch { toast.error('Failed to load settings'); }
     finally { setLoading(false); }
@@ -51,6 +65,65 @@ export default function SettingsAdminPage() {
       <p className="text-on-surface-variant text-sm mb-8">Changes take effect across the whole site immediately after saving.</p>
 
       <form onSubmit={save} style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* Hero Banner Image — first, above all text fields */}
+        <div className="bg-surface-container-lowest rounded-xl ambient-shadow p-6">
+          <h2 style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Hero Banner Image</h2>
+          <p style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>
+            The large photo shown on the right side of the homepage hero section.
+            Recommended: portrait or square image, at least 600×750px.
+          </p>
+
+          <ImageUpload
+            value={settings.hero_banner_url}
+            onChange={url => setSettings({ ...settings, hero_banner_url: url })}
+            bucket="product-images"
+            label="Banner Image"
+          />
+
+          {settings.hero_banner_url && (
+            <div className="mt-4 rounded-lg overflow-hidden" style={{ maxWidth: 240, aspectRatio: '4/5' }}>
+              <img
+                src={settings.hero_banner_url}
+                alt="Hero banner preview"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+          )}
+
+          {!settings.hero_banner_url && (
+            <p className="text-xs text-on-surface-variant mt-3">
+              No custom image set — the default hero photo is used.
+            </p>
+          )}
+        </div>
+
+        {/* Hero text */}
+        <div className="bg-surface-container-lowest rounded-xl ambient-shadow p-6">
+          <h2 style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Hero Section Text</h2>
+          <p style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>The main heading and subtitle shown at the top of the homepage.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Hero Title</label>
+              <input
+                value={settings.hero_title}
+                onChange={e => setSettings({ ...settings, hero_title: e.target.value })}
+                placeholder="Unlock Creativity in Every Child"
+                className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Hero Subtitle</label>
+              <textarea
+                value={settings.hero_subtitle}
+                onChange={e => setSettings({ ...settings, hero_subtitle: e.target.value })}
+                rows={3}
+                placeholder="Fun and educational creative books for schools and homeschoolers."
+                className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface resize-none"
+              />
+            </div>
+          </div>
+        </div>
 
         {/* WhatsApp */}
         <div className="bg-surface-container-lowest rounded-xl ambient-shadow p-6">
@@ -88,33 +161,6 @@ export default function SettingsAdminPage() {
               />
             </div>
           )}
-        </div>
-
-        {/* Hero text */}
-        <div className="bg-surface-container-lowest rounded-xl ambient-shadow p-6">
-          <h2 style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Hero Section</h2>
-          <p style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>The main heading and subtitle shown at the top of the homepage.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Hero Title</label>
-              <input
-                value={settings.hero_title}
-                onChange={e => setSettings({ ...settings, hero_title: e.target.value })}
-                placeholder="Unlock Creativity in Every Child"
-                className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>Hero Subtitle</label>
-              <textarea
-                value={settings.hero_subtitle}
-                onChange={e => setSettings({ ...settings, hero_subtitle: e.target.value })}
-                rows={3}
-                placeholder="Fun and educational creative books for schools and homeschoolers."
-                className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface resize-none"
-              />
-            </div>
-          </div>
         </div>
 
         <button
