@@ -46,6 +46,13 @@ const DELIVERY_LABELS: Record<string, { label: string; cls: string }> = {
   read_online: { label: 'Read Online', cls: 'bg-secondary-container/30 text-secondary' },
 };
 
+interface ProductImage {
+  id: string;
+  product_id: string;
+  image_url: string;
+  sort_order: number;
+}
+
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +61,44 @@ export default function ProductsAdminPage() {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Product | null>(null);
+  const [extraImages, setExtraImages] = useState<ProductImage[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   useEffect(() => { load(); }, []);
+
+  async function loadExtraImages(productId: string) {
+    setImagesLoading(true);
+    try {
+      const r = await fetch(`/api/admin/product-images?product_id=${productId}`, {
+        headers: { 'x-admin-key': key() },
+      });
+      const d = await r.json();
+      setExtraImages(d.images || []);
+    } catch { setExtraImages([]); }
+    finally { setImagesLoading(false); }
+  }
+
+  async function addExtraImage(imageUrl: string) {
+    if (!editing) return;
+    try {
+      await fetch('/api/admin/product-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
+        body: JSON.stringify({ product_id: editing.id, image_url: imageUrl, sort_order: extraImages.length }),
+      });
+      loadExtraImages(editing.id);
+    } catch { toast.error('Failed to save image'); }
+  }
+
+  async function deleteExtraImage(imageId: string) {
+    try {
+      await fetch(`/api/admin/product-images/${imageId}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': key() },
+      });
+      setExtraImages(prev => prev.filter(img => img.id !== imageId));
+    } catch { toast.error('Failed to delete image'); }
+  }
 
   async function load() {
     setLoading(true);
@@ -69,6 +112,7 @@ export default function ProductsAdminPage() {
 
   function openAdd() {
     setEditing(null);
+    setExtraImages([]);
     setForm({ ...BLANK, sort_order: products.length });
     setModal(true);
   }
@@ -87,6 +131,8 @@ export default function ProductsAdminPage() {
       sort_order: p.sort_order,
       delivery_type: p.delivery_type || 'physical',
     });
+    setExtraImages([]);
+    loadExtraImages(p.id);
     setModal(true);
   }
 
@@ -304,6 +350,65 @@ export default function ProductsAdminPage() {
                 bucket="product-images"
                 label="Cover Image"
               />
+
+              {/* Additional Product Images */}
+              {editing ? (
+                <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/20">
+                  <p className="text-sm font-medium text-on-surface-variant mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base">photo_library</span>
+                    Additional Product Images
+                  </p>
+
+                  {imagesLoading && (
+                    <p className="text-xs text-on-surface-variant mb-3">Loading images…</p>
+                  )}
+
+                  {!imagesLoading && extraImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {extraImages.map(img => (
+                        <div key={img.id} className="relative group">
+                          <img
+                            src={img.image_url}
+                            alt=""
+                            style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => deleteExtraImage(img.id)}
+                            style={{
+                              position: 'absolute', top: -6, right: -6,
+                              width: 20, height: 20, borderRadius: '50%',
+                              background: '#b02500', color: '#fff', border: 'none',
+                              cursor: 'pointer', fontSize: 12, lineHeight: '20px', textAlign: 'center',
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!imagesLoading && extraImages.length === 0 && (
+                    <p className="text-xs text-on-surface-variant mb-3">No additional images yet.</p>
+                  )}
+
+                  <ImageUpload
+                    value=""
+                    onChange={addExtraImage}
+                    bucket="product-images"
+                    label=""
+                  />
+                  <p className="text-xs text-on-surface-variant mt-2">
+                    Each uploaded image is saved immediately. Click × on a thumbnail to remove it.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/20 text-center">
+                  <span className="material-symbols-outlined text-2xl text-on-surface-variant mb-1 block">photo_library</span>
+                  <p className="text-sm text-on-surface-variant">
+                    Save this product first, then come back to edit it to add additional images.
+                  </p>
+                </div>
+              )}
 
               {/* Digital File Upload — only for download or read_online */}
               {needsFile && (

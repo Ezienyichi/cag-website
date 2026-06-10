@@ -55,7 +55,11 @@ export default function ProductDetailPage() {
   const params = useParams();
   const productId = params.id as string;
 
+  interface ProductImage { id: string; image_url: string; sort_order: number; }
+
   const [product, setProduct] = useState<CMSProduct | null>(null);
+  const [extraImages, setExtraImages] = useState<ProductImage[]>([]);
+  const [activeImage, setActiveImage] = useState<string>('');
   const [relatedProducts, setRelatedProducts] = useState<CMSProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -80,17 +84,26 @@ export default function ProductDetailPage() {
         if (error || !data) { setNotFound(true); return; }
 
         setProduct(data as CMSProduct);
+        setActiveImage(data.image_url || PLACEHOLDER);
 
-        const { data: related } = await supabase
-          .from('products')
-          .select('*')
-          .eq('category', data.category)
-          .eq('in_stock', true)
-          .neq('id', productId)
-          .order('sort_order')
-          .limit(3);
+        const [relatedRes, imagesRes] = await Promise.all([
+          supabase
+            .from('products')
+            .select('*')
+            .eq('category', data.category)
+            .eq('in_stock', true)
+            .neq('id', productId)
+            .order('sort_order')
+            .limit(3),
+          supabase
+            .from('product_images')
+            .select('*')
+            .eq('product_id', productId)
+            .order('sort_order', { ascending: true }),
+        ]);
 
-        setRelatedProducts((related as CMSProduct[]) || []);
+        setRelatedProducts((relatedRes.data as CMSProduct[]) || []);
+        setExtraImages((imagesRes.data as ProductImage[]) || []);
       } catch { setNotFound(true); }
       finally { setLoading(false); }
     }
@@ -191,23 +204,65 @@ export default function ProductDetailPage() {
 
         {/* Product Layout */}
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 mb-16">
-          {/* Left: Image */}
-          <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
-            <Image
-              src={product.image_url || PLACEHOLDER}
-              alt={product.name}
-              fill
-              className="object-contain"
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              priority
-            />
-            {/* Delivery badge */}
-            <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-bold font-headline ${deliveryInfo.badgeCls}`}>
-              {deliveryInfo.badge}
+          {/* Left: Image gallery */}
+          <div className="flex flex-col gap-3">
+            {/* Main (active) image */}
+            <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
+              <Image
+                src={activeImage}
+                alt={product.name}
+                fill
+                className="object-contain transition-opacity duration-200"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                priority
+              />
+              {/* Delivery badge */}
+              <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-bold font-headline ${deliveryInfo.badgeCls}`}>
+                {deliveryInfo.badge}
+              </div>
+              {product.featured && (
+                <div className="absolute top-4 right-4 bg-primary-container text-on-primary-container px-3 py-1.5 rounded-full text-xs font-bold font-headline">
+                  Featured
+                </div>
+              )}
             </div>
-            {product.featured && (
-              <div className="absolute top-4 right-4 bg-primary-container text-on-primary-container px-3 py-1.5 rounded-full text-xs font-bold font-headline">
-                Featured
+
+            {/* Thumbnail strip — only rendered when there are extra images */}
+            {extraImages.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {/* Cover image thumbnail */}
+                {(() => {
+                  const coverSrc = product.image_url || PLACEHOLDER;
+                  const isActive = activeImage === coverSrc;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setActiveImage(coverSrc)}
+                      className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                        isActive ? 'border-primary scale-105' : 'border-transparent hover:border-outline-variant'
+                      }`}
+                    >
+                      <img src={coverSrc} alt="Cover" className="w-full h-full object-cover" />
+                    </button>
+                  );
+                })()}
+
+                {/* Extra image thumbnails */}
+                {extraImages.map(img => {
+                  const isActive = activeImage === img.image_url;
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => setActiveImage(img.image_url)}
+                      className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                        isActive ? 'border-primary scale-105' : 'border-transparent hover:border-outline-variant'
+                      }`}
+                    >
+                      <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
