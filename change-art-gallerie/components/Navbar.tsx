@@ -83,8 +83,8 @@ export default function Navbar() {
           <Link href="/about" className="text-on-surface hover:text-primary transition-colors">
             About
           </Link>
-          <Link href="/#testimonials" className="text-on-surface hover:text-primary transition-colors">
-            Testimonials
+          <Link href="/gallery" className="text-on-surface hover:text-primary transition-colors">
+            Gallery
           </Link>
         </div>
 
@@ -180,8 +180,8 @@ export default function Navbar() {
             <Link href="/about" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
               About
             </Link>
-            <Link href="/#testimonials" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
-              Testimonials
+            <Link href="/gallery" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
+              Gallery
             </Link>
             <a href="/waitlist" onClick={closeMobile} className="py-3 text-primary">
               Join Waitlist

@@ -10,8 +10,7 @@ const NAV_LINKS = [
   { href: '/admin/orders', label: 'Orders', icon: 'receipt_long' },
   { href: '/admin/waitlist', label: 'Waitlist', icon: 'people' },
   { href: '/admin/books', label: 'Book Pages', icon: 'menu_book' },
-  { href: '/admin/gallery', label: 'Gallery', icon: 'photo_library' },
-  { href: '/admin/testimonials', label: 'Testimonials', icon: 'format_quote' },
+  { href: '/admin/gallery', label: 'Gallery & Testimonials', icon: 'photo_library' },
   { href: '/admin/faqs', label: 'FAQs', icon: 'quiz' },
   { href: '/admin/settings', label: 'Settings', icon: 'settings' },
 ];
