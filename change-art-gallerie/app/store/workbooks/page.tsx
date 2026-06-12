@@ -112,6 +112,14 @@ export default function WorkbooksStorePage() {
             <Link href="/store/digital" className="bg-surface-container-lowest text-primary px-6 py-2.5 rounded-full font-bold text-sm font-headline hover:scale-105 transition-all border border-outline-variant/20">Digital Books</Link>
           </div>
         </div>
+
+        <div className="mt-12 bg-primary-container/20 rounded-xl p-6 text-center">
+          <p className="font-bold font-headline text-lg mb-2">Looking for free content?</p>
+          <p className="text-on-surface-variant text-sm mb-4">Download free worksheets, activities and teaching guides — no payment needed.</p>
+          <a href="/resources" className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-bold text-sm inline-block hover:scale-105 transition-all">
+            Browse Free Resources →
+          </a>
+        </div>
       </main>
       <Footer />
     </>

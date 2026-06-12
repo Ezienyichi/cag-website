@@ -68,13 +68,18 @@ export default function Navbar() {
                   <span className="material-symbols-outlined text-base text-secondary">auto_stories</span>
                   Digital Books
                 </Link>
+                <div className="border-t border-surface-container-high my-1" />
+                <Link
+                  href="/resources"
+                  className="px-4 py-2.5 rounded-lg hover:bg-surface-container-high text-sm font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base text-tertiary">card_giftcard</span>
+                  Free Resources
+                </Link>
               </div>
             </div>
           </div>
 
-          <Link href="/#benefits" className="text-on-surface hover:text-primary transition-colors">
-            Resources
-          </Link>
           <Link href="/about" className="text-on-surface hover:text-primary transition-colors">
             About
           </Link>
@@ -156,15 +161,21 @@ export default function Navbar() {
                     <span className="material-symbols-outlined text-base">auto_stories</span>
                     Digital Books
                   </Link>
+                  <div className="border-t border-outline-variant/10 my-1" />
+                  <Link
+                    href="/resources"
+                    onClick={closeMobile}
+                    className="py-2 text-sm text-primary flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">card_giftcard</span>
+                    Free Resources
+                  </Link>
                 </div>
               )}
             </div>
 
             <Link href="/#collection" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
               Collection
-            </Link>
-            <Link href="/#benefits" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
-              Resources
             </Link>
             <Link href="/about" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
               About
