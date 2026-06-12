@@ -9,6 +9,41 @@ interface Props {
   label?: string;
 }
 
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const img = document.createElement('img');
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width;
+      let h = img.height;
+
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        if (blob) {
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        } else {
+          resolve(file);
+        }
+      }, 'image/jpeg', 0.85);
+    };
+
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 export default function ImageUpload({ value, onChange, bucket, label = 'Image' }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -25,8 +60,11 @@ export default function ImageUpload({ value, onChange, bucket, label = 'Image' }
         setError('Not authenticated. Please log out and log in again.');
         return;
       }
+
+      const fileToUpload = file.type.startsWith('image/') ? await compressImage(file) : file;
+
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', fileToUpload);
       fd.append('bucket', bucket);
       const res = await fetch('/api/admin/upload', {
         method: 'POST',
