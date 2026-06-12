@@ -1,113 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
-import cloudinary from '@/lib/cloudinary';
-import { Readable } from 'stream';
+import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-
-function getResourceType(file: File): 'image' | 'raw' {
-  if (file.type.startsWith('image/')) return 'image';
-  if (
-    file.type === 'application/pdf' ||
-    file.type === 'application/epub+zip' ||
-    file.type === 'application/msword' ||
-    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    file.name.toLowerCase().endsWith('.pdf') ||
-    file.name.toLowerCase().endsWith('.epub') ||
-    file.name.toLowerCase().endsWith('.doc') ||
-    file.name.toLowerCase().endsWith('.docx')
-  ) return 'raw';
-  // Default: treat unknown as raw so it always uploads
-  return 'raw';
-}
-
 export async function POST(req: NextRequest) {
+  console.log('=== Upload route hit ===');
+
   try {
-    // Auth
+    // Auth check
     const key = req.headers.get('x-admin-key');
     if (key !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('[upload] Unauthorized — x-admin-key mismatch');
-      return NextResponse.json({ error: 'Unauthorized. Check your admin session.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Log env var presence on every request (shows in Vercel logs)
-    console.log('CLOUDINARY_CLOUD_NAME exists:', !!process.env.CLOUDINARY_CLOUD_NAME);
-    console.log('CLOUDINARY_API_KEY exists:', !!process.env.CLOUDINARY_API_KEY);
-    console.log('CLOUDINARY_API_SECRET exists:', !!process.env.CLOUDINARY_API_SECRET);
 
     // Parse form data
     let formData: FormData;
     try {
       formData = await req.formData();
-    } catch (err: any) {
-      console.error('[upload] Failed to parse formData:', err?.message);
-      return NextResponse.json(
-        { error: 'Failed to parse request. File may exceed the 10 MB limit.' },
-        { status: 413 }
-      );
+    } catch (e: any) {
+      console.error('FormData error:', e);
+      return NextResponse.json({ error: 'Could not read form data' }, { status: 400 });
     }
 
     const file = formData.get('file') as File | null;
-    const folder = (formData.get('bucket') as string | null) || 'general';
+    const folder = (formData.get('bucket') as string) || 'general';
 
     if (!file) {
-      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+      return NextResponse.json({ error: 'No file in request' }, { status: 400 });
     }
 
-    // Size check
-    if (file.size > MAX_BYTES) {
-      return NextResponse.json(
-        { error: `File too large. Max 10 MB. Your file: ${(file.size / 1024 / 1024).toFixed(1)} MB.` },
-        { status: 413 }
-      );
+    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+
+    // Max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
     }
 
-    const resourceType = getResourceType(file);
-    console.log(
-      `[upload] "${file.name}" — ${(file.size / 1024).toFixed(1)} KB,`,
-      `type: ${file.type}, resource_type: ${resourceType}, folder: ${folder}`
+    // Check Cloudinary config
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
+    const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      console.error('Missing Cloudinary env vars:', { cloudName: !!cloudName, apiKey: !!apiKey, apiSecret: !!apiSecret });
+      return NextResponse.json({ error: 'Cloudinary not configured on server' }, { status: 500 });
+    }
+
+    // Convert file to base64 data URI
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base64 = Buffer.from(bytes).toString('base64');
+    const dataUri = 'data:' + file.type + ';base64,' + base64;
+
+    // Determine resource type
+    const isImage = file.type.startsWith('image/');
+    const resourceType = isImage ? 'image' : 'raw';
+
+    // Generate Cloudinary signature
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const sigString = 'folder=' + folder + '&timestamp=' + timestamp + apiSecret;
+    const signature = crypto.createHash('sha1').update(sigString).digest('hex');
+
+    // POST to Cloudinary REST API using URLSearchParams (reliable on Vercel Edge/Node)
+    const cloudForm = new URLSearchParams();
+    cloudForm.append('file', dataUri);
+    cloudForm.append('folder', folder);
+    cloudForm.append('timestamp', timestamp);
+    cloudForm.append('api_key', apiKey);
+    cloudForm.append('signature', signature);
+
+    console.log('Uploading to Cloudinary, resource_type:', resourceType);
+
+    const cloudRes = await fetch(
+      'https://api.cloudinary.com/v1_1/' + cloudName + '/' + resourceType + '/upload',
+      {
+        method: 'POST',
+        body: cloudForm,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      }
     );
 
-    // Read into buffer
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(await file.arrayBuffer());
-    } catch (err: any) {
-      console.error('[upload] arrayBuffer error:', err?.message);
-      return NextResponse.json({ error: 'Failed to read file data.' }, { status: 500 });
+    const cloudData = await cloudRes.json();
+
+    if (!cloudRes.ok) {
+      console.error('Cloudinary rejected:', cloudData);
+      return NextResponse.json({ error: cloudData.error?.message || 'Cloudinary upload failed' }, { status: 500 });
     }
 
-    // Upload to Cloudinary
-    let result: { secure_url: string };
-    try {
-      result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder, resource_type: resourceType },
-          (error, res) => {
-            if (error) reject(error);
-            else resolve(res as { secure_url: string });
-          }
-        );
-        const readable = new Readable();
-        readable.push(buffer);
-        readable.push(null);
-        readable.pipe(stream);
-      });
-    } catch (err: any) {
-      console.error('[upload] Cloudinary error:', err?.message || err);
-      return NextResponse.json(
-        { error: `Cloudinary error: ${err?.message || 'unknown'}` },
-        { status: 500 }
-      );
-    }
-
-    console.log('[upload] Success:', result.secure_url);
-    return NextResponse.json({ url: result.secure_url });
+    console.log('Upload OK:', cloudData.secure_url);
+    return NextResponse.json({ url: cloudData.secure_url });
 
   } catch (err: any) {
-    console.error('[upload] Unhandled error:', err?.message || err);
-    return NextResponse.json({ error: err?.message || 'Unexpected server error' }, { status: 500 });
+    console.error('Upload route crash:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }
