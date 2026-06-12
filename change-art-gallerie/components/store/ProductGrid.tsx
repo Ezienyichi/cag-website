@@ -15,6 +15,8 @@ export interface CMSProduct {
   in_stock: boolean;
   sort_order: number;
   delivery_type?: 'physical' | 'download' | 'read_online';
+  free_resource_url?: string | null;
+  free_resource_title?: string | null;
 }
 
 interface ProductGridProps {

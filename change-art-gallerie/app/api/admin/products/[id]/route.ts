@@ -21,6 +21,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     in_stock: body.in_stock ?? true,
     sort_order: body.sort_order ?? 0,
     delivery_type: body.delivery_type || 'physical',
+    free_resource_url: body.free_resource_url || null,
+    free_resource_title: body.free_resource_title || null,
   }).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ product: data });

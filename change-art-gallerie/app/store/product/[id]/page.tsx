@@ -288,6 +288,23 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
+            {/* Free Resource */}
+            {product.free_resource_url && (
+              <div className="bg-secondary-container/20 rounded-xl p-5 mt-6">
+                <p className="font-bold font-headline mb-1">🎁 Free Resource Included</p>
+                <p className="text-sm text-on-surface-variant mb-3">{product.free_resource_title || 'Free download included with this product'}</p>
+                <a
+                  href={product.free_resource_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-secondary text-on-secondary px-5 py-2 rounded-full font-bold text-sm inline-flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">download</span>
+                  Download Free Resource
+                </a>
+              </div>
+            )}
+
             {/* Price + Quantity (only physical gets quantity selector) */}
             <div className="flex items-center justify-between mb-6">
               <div>

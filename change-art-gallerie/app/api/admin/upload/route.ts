@@ -5,93 +5,94 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  console.log('=== Upload route hit ===');
+  console.log('Upload route called');
 
   try {
-    // Auth check
+    // Auth
     const key = req.headers.get('x-admin-key');
     if (key !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse form data
+    // Parse form
     let formData: FormData;
     try {
       formData = await req.formData();
     } catch (e: any) {
-      console.error('FormData error:', e);
-      return NextResponse.json({ error: 'Could not read form data' }, { status: 400 });
+      console.error('FormData parse failed:', e.message);
+      return NextResponse.json({ error: 'Failed to parse upload: ' + e.message }, { status: 400 });
     }
 
     const file = formData.get('file') as File | null;
     const folder = (formData.get('bucket') as string) || 'general';
 
     if (!file) {
-      return NextResponse.json({ error: 'No file in request' }, { status: 400 });
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+    console.log('File received:', file.name, file.size, file.type);
 
-    // Max 10MB
     if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+      return NextResponse.json({ error: 'File too large. Max size is 10MB.' }, { status: 400 });
     }
 
-    // Check Cloudinary config
+    // Validate env
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
-    const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
     if (!cloudName || !apiKey || !apiSecret) {
-      console.error('Missing Cloudinary env vars:', { cloudName: !!cloudName, apiKey: !!apiKey, apiSecret: !!apiSecret });
-      return NextResponse.json({ error: 'Cloudinary not configured on server' }, { status: 500 });
+      console.error('Missing Cloudinary config');
+      return NextResponse.json({ error: 'Server upload config missing' }, { status: 500 });
     }
 
-    // Convert file to base64 data URI
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const base64 = Buffer.from(bytes).toString('base64');
-    const dataUri = 'data:' + file.type + ';base64,' + base64;
+    // Convert to base64
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const dataUri = `data:${file.type};base64,${base64}`;
 
-    // Determine resource type
-    const isImage = file.type.startsWith('image/');
-    const resourceType = isImage ? 'image' : 'raw';
+    // Resource type
+    const resourceType = file.type.startsWith('image/') ? 'image' : 'raw';
 
-    // Generate Cloudinary signature
+    // Signature
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const sigString = 'folder=' + folder + '&timestamp=' + timestamp + apiSecret;
-    const signature = crypto.createHash('sha1').update(sigString).digest('hex');
+    const sigStr = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+    const signature = crypto.createHash('sha1').update(sigStr).digest('hex');
 
-    // POST to Cloudinary REST API using URLSearchParams (reliable on Vercel Edge/Node)
-    const cloudForm = new URLSearchParams();
-    cloudForm.append('file', dataUri);
-    cloudForm.append('folder', folder);
-    cloudForm.append('timestamp', timestamp);
-    cloudForm.append('api_key', apiKey);
-    cloudForm.append('signature', signature);
+    // Upload via URL-encoded form (most reliable on Vercel)
+    const params = new URLSearchParams();
+    params.append('file', dataUri);
+    params.append('folder', folder);
+    params.append('timestamp', timestamp);
+    params.append('api_key', apiKey);
+    params.append('signature', signature);
 
-    console.log('Uploading to Cloudinary, resource_type:', resourceType);
-
-    const cloudRes = await fetch(
-      'https://api.cloudinary.com/v1_1/' + cloudName + '/' + resourceType + '/upload',
+    const uploadRes = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
       {
         method: 'POST',
-        body: cloudForm,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
       }
     );
 
-    const cloudData = await cloudRes.json();
-
-    if (!cloudRes.ok) {
-      console.error('Cloudinary rejected:', cloudData);
-      return NextResponse.json({ error: cloudData.error?.message || 'Cloudinary upload failed' }, { status: 500 });
+    let uploadData: any;
+    try {
+      uploadData = await uploadRes.json();
+    } catch (e) {
+      return NextResponse.json({ error: 'Cloudinary returned invalid response' }, { status: 500 });
     }
 
-    console.log('Upload OK:', cloudData.secure_url);
-    return NextResponse.json({ url: cloudData.secure_url });
+    if (!uploadRes.ok) {
+      console.error('Cloudinary error:', uploadData);
+      return NextResponse.json({ error: uploadData?.error?.message || 'Upload failed' }, { status: 500 });
+    }
+
+    console.log('Upload success:', uploadData.secure_url);
+    return NextResponse.json({ url: uploadData.secure_url });
 
   } catch (err: any) {
-    console.error('Upload route crash:', err);
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    console.error('Upload crash:', err);
+    return NextResponse.json({ error: err.message || 'Unexpected server error' }, { status: 500 });
   }
 }

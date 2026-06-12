@@ -17,6 +17,8 @@ interface Product {
   in_stock: boolean;
   sort_order: number;
   delivery_type: 'physical' | 'download' | 'read_online';
+  free_resource_url: string | null;
+  free_resource_title: string | null;
 }
 
 const BLANK = {
@@ -30,6 +32,8 @@ const BLANK = {
   in_stock: true,
   sort_order: 0,
   delivery_type: 'physical' as const,
+  free_resource_url: '',
+  free_resource_title: '',
 };
 
 function key() {
@@ -63,6 +67,8 @@ export default function ProductsAdminPage() {
   const [confirmDelete, setConfirmDelete] = useState<Product | null>(null);
   const [extraImages, setExtraImages] = useState<ProductImage[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
+  const [hasFreeResource, setHasFreeResource] = useState(false);
+  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
 
   useEffect(() => { load(); }, []);
 
@@ -113,6 +119,8 @@ export default function ProductsAdminPage() {
   function openAdd() {
     setEditing(null);
     setExtraImages([]);
+    setAdditionalImages([]);
+    setHasFreeResource(false);
     setForm({ ...BLANK, sort_order: products.length });
     setModal(true);
   }
@@ -130,7 +138,11 @@ export default function ProductsAdminPage() {
       in_stock: p.in_stock,
       sort_order: p.sort_order,
       delivery_type: p.delivery_type || 'physical',
+      free_resource_url: p.free_resource_url || '',
+      free_resource_title: p.free_resource_title || '',
     });
+    setHasFreeResource(!!p.free_resource_url);
+    setAdditionalImages([]);
     setExtraImages([]);
     loadExtraImages(p.id);
     setModal(true);
@@ -145,9 +157,23 @@ export default function ProductsAdminPage() {
       const r = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          free_resource_url: hasFreeResource ? (form.free_resource_url || null) : null,
+          free_resource_title: hasFreeResource ? (form.free_resource_title || null) : null,
+        }),
       });
       if (!r.ok) throw new Error();
+      const data = await r.json();
+      if (!editing && data.product && additionalImages.length > 0) {
+        for (let i = 0; i < additionalImages.length; i++) {
+          await fetch('/api/admin/product-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
+            body: JSON.stringify({ product_id: data.product.id, image_url: additionalImages[i], sort_order: i }),
+          });
+        }
+      }
       toast.success(editing ? 'Product updated!' : 'Product added!');
       setModal(false);
       load();
@@ -397,10 +423,35 @@ export default function ProductsAdminPage() {
                   </p>
                 </div>
               ) : (
-                <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/20 text-center">
-                  <span className="material-symbols-outlined text-2xl text-on-surface-variant mb-1 block">photo_library</span>
-                  <p className="text-sm text-on-surface-variant">
-                    Save this product first, then come back to edit it to add additional images.
+                <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/20">
+                  <p className="text-sm font-medium text-on-surface-variant mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base">photo_library</span>
+                    Additional Product Images
+                  </p>
+
+                  {additionalImages.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {additionalImages.map((url, i) => (
+                        <div key={i} className="relative w-full aspect-square rounded-lg overflow-hidden">
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setAdditionalImages(prev => prev.filter((_, idx) => idx !== i))}
+                            className="absolute top-1 right-1 bg-error text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:scale-110 transition-transform"
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <ImageUpload
+                    value=""
+                    onChange={url => setAdditionalImages(prev => [...prev, url])}
+                    bucket="product-images"
+                    label=""
+                  />
+                  <p className="text-xs text-on-surface-variant mt-2">
+                    You can add multiple images. Each one appears in the product gallery.
                   </p>
                 </div>
               )}
@@ -426,6 +477,43 @@ export default function ProductsAdminPage() {
                   )}
                 </div>
               )}
+
+              {/* Free Resource Section */}
+              <div className="border border-outline-variant/20 rounded-lg p-4 bg-surface-container-high/20">
+                <label className="flex items-center gap-3 cursor-pointer select-none mb-3">
+                  <input
+                    type="checkbox"
+                    checked={hasFreeResource}
+                    onChange={e => setHasFreeResource(e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm font-medium flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-secondary">card_giftcard</span>
+                    Include a free downloadable resource with this product
+                  </span>
+                </label>
+
+                {hasFreeResource && (
+                  <div className="space-y-3 pt-1">
+                    <FileUpload
+                      value={form.free_resource_url}
+                      onChange={url => setForm({ ...form, free_resource_url: url })}
+                      bucket="digital-files"
+                      label="Free Resource File"
+                    />
+                    <div>
+                      <label className="text-sm font-medium text-on-surface-variant block mb-1">Resource Title</label>
+                      <input
+                        type="text"
+                        value={form.free_resource_title}
+                        onChange={e => setForm({ ...form, free_resource_title: e.target.value })}
+                        placeholder="e.g. Free Sample Chapter"
+                        className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Sort order + toggles */}
               <div className="grid grid-cols-2 gap-4">
