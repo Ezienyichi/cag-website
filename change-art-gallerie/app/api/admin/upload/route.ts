@@ -1,3 +1,6 @@
+// DEPRECATED: ImageUpload and FileUpload components now upload directly to Cloudinary
+// from the browser using an unsigned upload preset, bypassing this route entirely.
+// This file is kept in case other server-side code needs it in future.
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
