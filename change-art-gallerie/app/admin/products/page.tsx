@@ -163,8 +163,11 @@ export default function ProductsAdminPage() {
           free_resource_title: hasFreeResource ? (form.free_resource_title || null) : null,
         }),
       });
-      if (!r.ok) throw new Error();
       const data = await r.json();
+      if (!r.ok) {
+        console.error('[products] save failed:', data);
+        throw new Error(data.error || `Save failed (${r.status})`);
+      }
       if (!editing && data.product && additionalImages.length > 0) {
         for (let i = 0; i < additionalImages.length; i++) {
           await fetch('/api/admin/product-images', {
@@ -177,7 +180,7 @@ export default function ProductsAdminPage() {
       toast.success(editing ? 'Product updated!' : 'Product added!');
       setModal(false);
       load();
-    } catch { toast.error('Failed to save'); }
+    } catch (err: any) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   }
 
