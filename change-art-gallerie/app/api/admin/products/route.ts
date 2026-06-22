@@ -5,6 +5,15 @@ function auth(req: NextRequest) {
   return req.headers.get('x-admin-key') === process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
 export async function GET(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const supabase = createServerClient();
@@ -29,11 +38,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    body.slug = body.slug || generateSlug(body.name);
     console.log('Product body:', JSON.stringify(body));
 
     const supabase = createServerClient();
     const { data, error } = await supabase.from('products').insert({
       name: body.name,
+      slug: body.slug,
       description: body.description || null,
       price: body.price,
       category: body.category,
