@@ -16,10 +16,23 @@ interface Product {
   featured: boolean;
   in_stock: boolean;
   sort_order: number;
-  delivery_type: 'physical' | 'download' | 'read_online';
+  delivery_type: 'physical' | 'download' | 'read_online' | 'free';
   free_resource_url: string | null;
   free_resource_title: string | null;
 }
+
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: 'workbooks', label: 'Workbooks' },
+  { value: 'homeschooling', label: 'Homeschooling' },
+  { value: 'digital', label: 'Digital' },
+  { value: 'nursery1', label: 'Nursery 1' },
+  { value: 'nursery2', label: 'Nursery 2' },
+  { value: 'nursery3', label: 'Nursery 3' },
+  { value: 'art_supplies', label: 'Art Supplies' },
+  { value: 'stationery', label: 'Stationery' },
+  { value: 'bundles', label: 'Bundles & Kits' },
+  { value: 'resources', label: 'Free Resources' },
+];
 
 const BLANK = {
   name: '',
@@ -31,7 +44,7 @@ const BLANK = {
   featured: false,
   in_stock: true,
   sort_order: 0,
-  delivery_type: 'physical' as const,
+  delivery_type: 'physical' as Product['delivery_type'],
   free_resource_url: '',
   free_resource_title: '',
 };
@@ -48,6 +61,7 @@ const DELIVERY_LABELS: Record<string, { label: string; cls: string }> = {
   physical: { label: 'Hard Copy', cls: 'bg-tertiary-container/30 text-tertiary' },
   download: { label: 'Digital Download', cls: 'bg-primary-container/30 text-primary' },
   read_online: { label: 'Read Online', cls: 'bg-secondary-container/30 text-secondary' },
+  free: { label: 'Free Download', cls: 'bg-green-100 text-green-700' },
 };
 
 interface ProductImage {
@@ -154,14 +168,24 @@ export default function ProductsAdminPage() {
     try {
       const url = editing ? `/api/admin/products/${editing.id}` : '/api/admin/products';
       const method = editing ? 'PATCH' : 'POST';
+      const payload = {
+        name: form.name,
+        description: form.description || null,
+        price: form.price,
+        category: form.category,
+        delivery_type: form.delivery_type,
+        image_url: form.image_url || null,
+        file_url: form.file_url || null,
+        featured: form.featured,
+        in_stock: form.in_stock,
+        sort_order: form.sort_order || 0,
+        free_resource_url: hasFreeResource ? (form.free_resource_url || null) : null,
+        free_resource_title: hasFreeResource ? (form.free_resource_title || null) : null,
+      };
       const r = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
-        body: JSON.stringify({
-          ...form,
-          free_resource_url: hasFreeResource ? (form.free_resource_url || null) : null,
-          free_resource_title: hasFreeResource ? (form.free_resource_title || null) : null,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -197,7 +221,7 @@ export default function ProductsAdminPage() {
     } catch { toast.error('Failed to delete'); }
   }
 
-  const needsFile = form.delivery_type === 'download' || form.delivery_type === 'read_online';
+  const needsFile = form.delivery_type === 'download' || form.delivery_type === 'read_online' || form.delivery_type === 'free';
 
   return (
     <div>
@@ -345,9 +369,9 @@ export default function ProductsAdminPage() {
                     onChange={e => setForm({ ...form, category: e.target.value })}
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
                   >
-                    <option value="workbooks">Workbooks</option>
-                    <option value="homeschooling">Homeschooling</option>
-                    <option value="digital">Digital</option>
+                    {CATEGORIES.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -361,14 +385,16 @@ export default function ProductsAdminPage() {
                   onChange={e => setForm({ ...form, delivery_type: e.target.value as typeof form.delivery_type })}
                   className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-sm text-on-surface"
                 >
-                  <option value="physical">Physical (Hard Copy — Delivery)</option>
-                  <option value="download">Digital (Download — Customer gets a file)</option>
-                  <option value="read_online">Digital (Read Online — Embedded viewer, no download)</option>
+                  <option value="physical">Physical (Hard Copy) — Order for delivery</option>
+                  <option value="download">Digital Download — Customer downloads file</option>
+                  <option value="read_online">Read Online — Customer reads in browser</option>
+                  <option value="free">Free Download — No payment needed</option>
                 </select>
                 <p className="text-xs text-on-surface-variant mt-1">
                   {form.delivery_type === 'physical' && 'Customer orders and receives a physical book.'}
                   {form.delivery_type === 'download' && 'Customer pays and downloads the file after payment.'}
                   {form.delivery_type === 'read_online' && 'Customer pays and reads the file in the browser. File is not downloadable.'}
+                  {form.delivery_type === 'free' && 'Customer gets the file immediately with no payment required.'}
                 </p>
               </div>
 
@@ -469,6 +495,8 @@ export default function ProductsAdminPage() {
                     label={
                       form.delivery_type === 'download'
                         ? 'Digital File to Download (PDF, EPUB, etc.)'
+                        : form.delivery_type === 'free'
+                        ? 'Free File to Download (PDF, EPUB, etc.)'
                         : 'Digital File to Read Online (PDF)'
                     }
                   />

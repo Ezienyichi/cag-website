@@ -48,6 +48,14 @@ export default function Navbar() {
             <div className="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
               <div className="bg-surface-container-lowest rounded-xl p-2 ambient-shadow min-w-[190px] flex flex-col border border-outline-variant/10">
                 <Link
+                  href="/store"
+                  className="px-4 py-2.5 rounded-lg hover:bg-surface-container-high text-sm font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base">storefront</span>
+                  View All
+                </Link>
+                <div className="border-t border-surface-container-high my-1" />
+                <Link
                   href="/store/workbooks"
                   className="px-4 py-2.5 rounded-lg hover:bg-surface-container-high text-sm font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-2"
                 >
@@ -137,6 +145,15 @@ export default function Navbar() {
               </button>
               {shopOpen && (
                 <div className="flex flex-col gap-1 pl-4 pb-3">
+                  <Link
+                    href="/store"
+                    onClick={closeMobile}
+                    className="py-2 text-sm text-primary flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">storefront</span>
+                    View All
+                  </Link>
+                  <div className="border-t border-outline-variant/10 my-1" />
                   <Link
                     href="/store/workbooks"
                     onClick={closeMobile}

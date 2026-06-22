@@ -14,7 +14,7 @@ export interface CMSProduct {
   featured: boolean;
   in_stock: boolean;
   sort_order: number;
-  delivery_type?: 'physical' | 'download' | 'read_online';
+  delivery_type?: 'physical' | 'download' | 'read_online' | 'free';
   free_resource_url?: string | null;
   free_resource_title?: string | null;
 }
@@ -35,6 +35,13 @@ const CATEGORY_LABEL: Record<string, string> = {
   workbooks: 'School WorkBook',
   homeschooling: 'Homeschooling',
   digital: 'Digital',
+  nursery1: 'Nursery 1',
+  nursery2: 'Nursery 2',
+  nursery3: 'Nursery 3',
+  art_supplies: 'Art Supplies',
+  stationery: 'Stationery',
+  bundles: 'Bundles & Kits',
+  resources: 'Free Resources',
 };
 
 const PLACEHOLDER = '/images/color-alchemist.png';
@@ -46,12 +53,16 @@ function getDeliveryBadge(p: CMSProduct) {
   if (p.delivery_type === 'read_online') {
     return { label: 'Read Online', cls: 'bg-secondary-container/30 text-secondary' };
   }
+  if (p.delivery_type === 'free') {
+    return { label: 'Free Download', cls: 'bg-green-100 text-green-700' };
+  }
   return { label: 'Hard Copy', cls: 'bg-tertiary-container/30 text-tertiary' };
 }
 
 function getCtaLabel(p: CMSProduct) {
   if (p.delivery_type === 'download') return 'View & Download';
   if (p.delivery_type === 'read_online') return 'View & Read';
+  if (p.delivery_type === 'free') return 'Get for Free';
   return 'View & Order';
 }
 
