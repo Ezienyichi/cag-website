@@ -1,8 +1,11 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase';
 import EventRegistrationForm from './EventRegistrationForm';
 
 interface EventDetail {
@@ -47,20 +50,73 @@ function formatPrice(p: number) {
   return '₦' + p.toLocaleString('en-NG');
 }
 
-export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function EventDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
 
-  const supabase = createServerClient();
-  const { data: event } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .eq('visible', true)
-    .single();
+  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-  if (!event) notFound();
+  useEffect(() => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    supabase
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .eq('visible', true)
+      .single()
+      .then(({ data }) => {
+        setEvent(data as EventDetail | null);
+        setLoading(false);
+      });
+  }, [id]);
 
-  const ev = event as EventDetail;
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center pt-28">
+          <div className="text-center text-on-surface-variant">
+            <span className="material-symbols-outlined text-4xl mb-3 block animate-pulse">event</span>
+            Loading event…
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!event) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center pt-28 px-6">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block">event_busy</span>
+            <h1 className="text-2xl font-bold font-headline mb-2">Event Not Found</h1>
+            <p className="text-on-surface-variant mb-6">This event doesn't exist or is no longer available.</p>
+            <Link href="/events" className="bg-primary-container text-on-primary-container px-6 py-3 rounded-full font-bold font-headline hover:scale-105 transition-all inline-flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Back to Events
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  const ev = event;
   const waUrl = ev.whatsapp_link || (ev.whatsapp_number ? `https://wa.me/${ev.whatsapp_number}` : null);
 
   return (
@@ -76,7 +132,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </div>
 
           <div className="grid lg:grid-cols-3 gap-10">
-            {/* Left: Image + Gallery */}
+            {/* Left: Image + Gallery + Description */}
             <div className="lg:col-span-2 space-y-6">
               {ev.flyer_url && (
                 <div className="rounded-2xl overflow-hidden bg-surface-container-high">
@@ -88,7 +144,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
-              {/* Additional images */}
               {(ev.additional_images || []).length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {(ev.additional_images || []).map((img, i) => (
@@ -99,7 +154,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
-              {/* Description */}
               {ev.description && (
                 <div className="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow">
                   <h2 className="text-lg font-bold font-headline mb-4">About This Event</h2>
@@ -107,7 +161,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
-              {/* Google Maps embed */}
               {ev.location_url && (
                 <div className="bg-surface-container-lowest rounded-2xl overflow-hidden ambient-shadow">
                   <div className="p-4 border-b border-outline-variant/10 flex items-center gap-2">
@@ -151,14 +204,17 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 {ev.short_description && (
                   <p className="text-on-surface-variant text-sm mb-5">{ev.short_description}</p>
                 )}
-
                 <div className="space-y-3">
                   {ev.event_date && (
                     <div className="flex gap-3">
                       <span className="material-symbols-outlined text-base text-primary mt-0.5 shrink-0">calendar_today</span>
                       <div>
                         <p className="text-sm font-medium">{formatDate(ev.event_date)}</p>
-                        {ev.event_time && <p className="text-xs text-on-surface-variant">{ev.event_time}{ev.end_time ? ` – ${ev.end_time}` : ''}</p>}
+                        {ev.event_time && (
+                          <p className="text-xs text-on-surface-variant">
+                            {ev.event_time}{ev.end_time ? ` – ${ev.end_time}` : ''}
+                          </p>
+                        )}
                         {ev.end_date && ev.end_date !== ev.event_date && (
                           <p className="text-xs text-on-surface-variant">Ends: {formatDate(ev.end_date)}</p>
                         )}
@@ -222,13 +278,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     </a>
                   )}
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                    }}
+                    onClick={copyLink}
                     className="flex-1 bg-surface-container-high py-2.5 rounded-full text-xs font-bold font-headline flex items-center justify-center gap-1.5 hover:bg-surface-container transition-colors"
                   >
-                    <span className="material-symbols-outlined text-sm">link</span>
-                    Copy Link
+                    <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'link'}</span>
+                    {copied ? 'Copied!' : 'Copy Link'}
                   </button>
                 </div>
               </div>
