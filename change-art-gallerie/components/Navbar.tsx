@@ -94,6 +94,9 @@ export default function Navbar() {
           <Link href="/gallery" className="text-on-surface hover:text-primary transition-colors">
             Gallery
           </Link>
+          <Link href="/events" className="text-on-surface hover:text-primary transition-colors">
+            Events
+          </Link>
         </div>
 
         {/* Actions */}
@@ -199,6 +202,9 @@ export default function Navbar() {
             </Link>
             <Link href="/gallery" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
               Gallery
+            </Link>
+            <Link href="/events" onClick={closeMobile} className="py-3 text-on-surface border-b border-outline-variant/10">
+              Events
             </Link>
             <a href="/waitlist" onClick={closeMobile} className="py-3 text-primary">
               Join Waitlist
