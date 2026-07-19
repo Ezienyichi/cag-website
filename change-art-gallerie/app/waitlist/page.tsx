@@ -66,6 +66,7 @@ export default function WaitlistPage() {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [location, setLocation] = useState('');
   const [role, setRole] = useState('parent');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -144,6 +145,7 @@ export default function WaitlistPage() {
         `*Name:* ${fullName}\n` +
         `*Email:* ${email}\n` +
         `*Phone:* ${phone}\n` +
+        `*Location:* ${location}\n` +
         `*Role:* ${roleLabels[role] || role}\n` +
         `\nI'm interested in your creative books. Can you tell me more?`
     );
@@ -162,7 +164,7 @@ export default function WaitlistPage() {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, full_name: fullName, role }),
+        body: JSON.stringify({ email, full_name: fullName, phone, location, role }),
       });
 
       const data = await res.json();
@@ -270,6 +272,18 @@ export default function WaitlistPage() {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="e.g. 08012345678"
+                          required
+                          className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-on-surface placeholder:text-outline-variant ghost-border-focus transition-all font-body"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Location / City *</label>
+                        <input
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="e.g. Port Harcourt, Rivers State"
                           required
                           className="w-full px-4 py-3 bg-surface-container-high rounded-lg text-on-surface placeholder:text-outline-variant ghost-border-focus transition-all font-body"
                         />

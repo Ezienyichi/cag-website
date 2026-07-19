@@ -26,6 +26,7 @@ const DELIVERY_INFO = {
     sub: 'Delivery available across Rivers State and beyond.',
     badge: 'Hard Copy',
     badgeCls: 'bg-tertiary-container/30 text-tertiary',
+    hint: 'This is a physical product. Complete your order via WhatsApp and we\'ll arrange delivery.',
   },
   download: {
     icon: 'download',
@@ -34,6 +35,7 @@ const DELIVERY_INFO = {
     sub: 'Download your file immediately after payment. PDF format, read on any device.',
     badge: 'Digital Download',
     badgeCls: 'bg-primary-container/30 text-primary',
+    hint: 'Instant download after payment.',
   },
   read_online: {
     icon: 'menu_book',
@@ -42,14 +44,15 @@ const DELIVERY_INFO = {
     sub: 'Read this book in your browser right after payment. No download needed.',
     badge: 'Read Online',
     badgeCls: 'bg-secondary-container/30 text-secondary',
+    hint: 'Access immediately after payment.',
   },
 } as const;
 
-function getCtaLabel(deliveryType: string) {
-  if (deliveryType === 'download') return 'Buy & Download';
-  if (deliveryType === 'read_online') return 'Buy & Read Online';
-  return 'Order Now';
-}
+const WA_SVG = (
+  <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+);
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -63,43 +66,36 @@ export default function ProductDetailPage() {
   const [relatedProducts, setRelatedProducts] = useState<CMSProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('2348012345678');
 
   const [quantity, setQuantity] = useState(1);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
+  const [buyerLocation, setBuyerLocation] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const supabase = createBrowserClient();
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', productId)
-          .single();
+        const [productRes, settingsRes] = await Promise.all([
+          supabase.from('products').select('*').eq('id', productId).single(),
+          supabase.from('site_settings').select('key, value').eq('key', 'whatsapp_number'),
+        ]);
 
-        if (error || !data) { setNotFound(true); return; }
+        if (productRes.error || !productRes.data) { setNotFound(true); return; }
+        setProduct(productRes.data as CMSProduct);
+        setActiveImage(productRes.data.image_url || PLACEHOLDER);
 
-        setProduct(data as CMSProduct);
-        setActiveImage(data.image_url || PLACEHOLDER);
+        for (const row of settingsRes.data || []) {
+          if (row.key === 'whatsapp_number') setWhatsappNumber(row.value);
+        }
 
         const [relatedRes, imagesRes] = await Promise.all([
-          supabase
-            .from('products')
-            .select('*')
-            .eq('category', data.category)
-            .eq('in_stock', true)
-            .neq('id', productId)
-            .order('sort_order')
-            .limit(3),
-          supabase
-            .from('product_images')
-            .select('*')
-            .eq('product_id', productId)
-            .order('sort_order', { ascending: true }),
+          supabase.from('products').select('*').eq('category', productRes.data.category).eq('in_stock', true).neq('id', productId).order('sort_order').limit(3),
+          supabase.from('product_images').select('*').eq('product_id', productId).order('sort_order', { ascending: true }),
         ]);
 
         setRelatedProducts((relatedRes.data as CMSProduct[]) || []);
@@ -110,11 +106,63 @@ export default function ProductDetailPage() {
     load();
   }, [productId]);
 
-  async function handleCheckout(e: React.FormEvent) {
+  function formatNaira(kobo: number) {
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(kobo / 100);
+  }
+
+  async function handleWhatsAppCheckout(e: React.FormEvent) {
+    e.preventDefault();
+    if (!product) return;
+    if (!buyerName || !buyerEmail || !buyerPhone || !buyerLocation) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setCheckoutLoading(true);
+    try {
+      // Save pending order so it shows in admin dashboard
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: buyerName,
+          customer_email: buyerEmail,
+          customer_phone: buyerPhone,
+          location: buyerLocation,
+          total_amount: product.price * quantity,
+          currency: 'NGN',
+          product_id: product.id,
+          product_name: product.name,
+          quantity,
+          notes: 'WhatsApp order',
+        }),
+      });
+
+      const message = encodeURIComponent(
+        `Hi Change Art Gallerie! 👋\n\n` +
+        `I'd like to order:\n\n` +
+        `*Product:* ${product.name}\n` +
+        `*Quantity:* ${quantity}\n` +
+        `*Price:* ₦${((product.price * quantity) / 100).toLocaleString()}\n\n` +
+        `*My Details:*\n` +
+        `*Name:* ${buyerName}\n` +
+        `*Email:* ${buyerEmail}\n` +
+        `*Phone:* ${buyerPhone}\n` +
+        `*Location:* ${buyerLocation}\n\n` +
+        `Please confirm availability and delivery details. Thank you!`
+      );
+
+      window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
+    } catch {
+      toast.error('Something went wrong. Please try again.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+  async function handleFlutterwaveCheckout(e: React.FormEvent) {
     e.preventDefault();
     if (!product) return;
     if (!buyerName || !buyerEmail) { toast.error('Please fill in your name and email'); return; }
-
     setCheckoutLoading(true);
     try {
       const res = await fetch('/api/checkout', {
@@ -137,7 +185,6 @@ export default function ProductDetailPage() {
           customerName: buyerName,
         }),
       });
-
       const data = await res.json();
       if (data.paymentLink) {
         window.location.href = data.paymentLink;
@@ -146,10 +193,6 @@ export default function ProductDetailPage() {
       }
     } catch { toast.error('Network error. Please check your connection and try again.'); }
     finally { setCheckoutLoading(false); }
-  }
-
-  function formatNaira(kobo: number) {
-    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(kobo / 100);
   }
 
   if (loading) {
@@ -185,9 +228,12 @@ export default function ProductDetailPage() {
 
   const deliveryType = product.delivery_type || 'physical';
   const isPhysical = deliveryType === 'physical';
+  const isDigital = deliveryType === 'download' || deliveryType === 'read_online';
   const deliveryInfo = DELIVERY_INFO[deliveryType as keyof typeof DELIVERY_INFO] || DELIVERY_INFO.physical;
   const storeLabel = CATEGORY_STORE_LABEL[product.category] || product.category;
   const storeHref = `/store/${product.category}`;
+
+  const handleCheckout = isPhysical ? handleWhatsAppCheckout : handleFlutterwaveCheckout;
 
   return (
     <>
@@ -206,7 +252,6 @@ export default function ProductDetailPage() {
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 mb-16">
           {/* Left: Image gallery */}
           <div className="flex flex-col gap-3">
-            {/* Main (active) image */}
             <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-container-high ambient-shadow">
               <Image
                 src={activeImage}
@@ -216,7 +261,6 @@ export default function ProductDetailPage() {
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 priority
               />
-              {/* Delivery badge */}
               <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-bold font-headline ${deliveryInfo.badgeCls}`}>
                 {deliveryInfo.badge}
               </div>
@@ -227,10 +271,8 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Thumbnail strip — only rendered when there are extra images */}
             {extraImages.length > 0 && (
               <div className="flex gap-2 overflow-x-auto py-2">
-                {/* Cover image thumbnail */}
                 {(() => {
                   const coverSrc = product.image_url || PLACEHOLDER;
                   const isActive = activeImage === coverSrc;
@@ -246,8 +288,6 @@ export default function ProductDetailPage() {
                     </button>
                   );
                 })()}
-
-                {/* Extra image thumbnails */}
                 {extraImages.map(img => {
                   const isActive = activeImage === img.image_url;
                   return (
@@ -290,7 +330,7 @@ export default function ProductDetailPage() {
 
             {/* Free Resource */}
             {product.free_resource_url && (
-              <div className="bg-secondary-container/20 rounded-xl p-5 mt-6">
+              <div className="bg-secondary-container/20 rounded-xl p-5 mb-6">
                 <p className="font-bold font-headline mb-1">🎁 Free Resource Included</p>
                 <p className="text-sm text-on-surface-variant mb-3">{product.free_resource_title || 'Free download included with this product'}</p>
                 <a
@@ -305,8 +345,8 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            {/* Price + Quantity (only physical gets quantity selector) */}
-            <div className="flex items-center justify-between mb-6">
+            {/* Price + Quantity */}
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <span className="text-3xl font-bold text-primary font-headline">
                   {formatNaira(product.price * (isPhysical ? quantity : 1))}
@@ -336,26 +376,44 @@ export default function ProductDetailPage() {
               )}
             </div>
 
+            {/* Delivery hint */}
+            <p className="text-sm text-on-surface-variant mb-5 flex items-start gap-2">
+              <span className="material-symbols-outlined text-base mt-0.5 shrink-0 text-primary">info</span>
+              {deliveryInfo.hint}
+            </p>
+
             {/* CTA / Checkout Form */}
             {!showCheckout ? (
-              <button
-                onClick={() => setShowCheckout(true)}
-                className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined">
-                  {deliveryType === 'download' ? 'download' : deliveryType === 'read_online' ? 'menu_book' : 'shopping_cart'}
-                </span>
-                {getCtaLabel(deliveryType)}
-              </button>
+              isPhysical ? (
+                <button
+                  onClick={() => setShowCheckout(true)}
+                  className="w-full bg-[#25D366] text-white py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
+                >
+                  {WA_SVG}
+                  Complete Transaction on WhatsApp
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowCheckout(true)}
+                  className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined">
+                    {deliveryType === 'download' ? 'download' : 'menu_book'}
+                  </span>
+                  {deliveryType === 'download' ? 'Buy & Download' : 'Buy & Read Online'}
+                </button>
+              )
             ) : (
               <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
-                <h3 className="font-bold font-headline mb-4">Complete Your Purchase</h3>
+                <h3 className="font-bold font-headline mb-4">
+                  {isPhysical ? 'Your Order Details' : 'Complete Your Purchase'}
+                </h3>
                 <form onSubmit={handleCheckout} className="space-y-3">
                   <input
                     type="text"
                     value={buyerName}
                     onChange={e => setBuyerName(e.target.value)}
-                    placeholder="Your full name"
+                    placeholder="Full name *"
                     required
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
                   />
@@ -363,34 +421,72 @@ export default function ProductDetailPage() {
                     type="email"
                     value={buyerEmail}
                     onChange={e => setBuyerEmail(e.target.value)}
-                    placeholder="Your email address (for order confirmation)"
+                    placeholder="Email address *"
                     required
                     className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
                   />
-                  {isPhysical && (
-                    <input
-                      type="tel"
-                      value={buyerPhone}
-                      onChange={e => setBuyerPhone(e.target.value)}
-                      placeholder="Phone number (for delivery updates)"
-                      className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
-                    />
+                  <input
+                    type="tel"
+                    value={buyerPhone}
+                    onChange={e => setBuyerPhone(e.target.value)}
+                    placeholder={isPhysical ? 'Phone number * (for delivery updates)' : 'Phone number (optional)'}
+                    required={isPhysical}
+                    className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={buyerLocation}
+                    onChange={e => setBuyerLocation(e.target.value)}
+                    placeholder={isPhysical ? 'Location / City * (e.g. Port Harcourt)' : 'Location / City (optional)'}
+                    required={isPhysical}
+                    className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
+                  />
+
+                  {isPhysical ? (
+                    <>
+                      <button
+                        type="submit"
+                        disabled={checkoutLoading}
+                        className="w-full bg-[#25D366] text-white py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 font-headline flex items-center justify-center gap-2"
+                      >
+                        {checkoutLoading ? 'Opening WhatsApp…' : (
+                          <>
+                            {WA_SVG}
+                            Complete Transaction on WhatsApp
+                          </>
+                        )}
+                      </button>
+                      <p className="text-xs text-on-surface-variant text-center">
+                        We'll confirm your order and arrange delivery over WhatsApp.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="submit"
+                        disabled={checkoutLoading}
+                        className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 font-headline flex items-center justify-center gap-2"
+                      >
+                        {checkoutLoading ? 'Redirecting to payment…' : (
+                          <>
+                            <span className="material-symbols-outlined text-lg">lock</span>
+                            Pay {formatNaira(product.price)} with Flutterwave
+                          </>
+                        )}
+                      </button>
+                      <p className="text-xs text-on-surface-variant text-center">
+                        Secure payment powered by Flutterwave. Cards, bank transfer, and USSD accepted.
+                      </p>
+                    </>
                   )}
+
                   <button
-                    type="submit"
-                    disabled={checkoutLoading}
-                    className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-base hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 font-headline flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => setShowCheckout(false)}
+                    className="w-full text-xs text-on-surface-variant hover:text-on-surface transition-colors py-1"
                   >
-                    {checkoutLoading ? 'Redirecting to payment…' : (
-                      <>
-                        <span className="material-symbols-outlined text-lg">lock</span>
-                        Pay {formatNaira(product.price * (isPhysical ? quantity : 1))} with Flutterwave
-                      </>
-                    )}
+                    Cancel
                   </button>
-                  <p className="text-xs text-on-surface-variant text-center">
-                    Secure payment powered by Flutterwave. Cards, bank transfer, and USSD accepted.
-                  </p>
                 </form>
               </div>
             )}

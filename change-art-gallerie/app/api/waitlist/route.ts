@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, full_name, role } = await req.json();
+    const { email, full_name, phone, location, role } = await req.json();
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from('waitlist_signups')
       .upsert(
-        { email: email.toLowerCase().trim(), full_name: full_name || '', role: role || 'parent', source: 'website' },
+        { email: email.toLowerCase().trim(), full_name: full_name || '', phone: phone || null, location: location || null, role: role || 'parent', source: 'website' },
         { onConflict: 'email' }
       )
       .select()
