@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import BookCarousel from '@/components/BookCarousel';
 import RealTimeGrid from '@/components/RealTimeGrid';
 import { createBrowserClient } from '@/lib/supabase';
+import { fbq } from '@/lib/pixel';
 
 const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/cag_childrencolouringbook/?hl=en',
@@ -172,6 +173,7 @@ export default function WaitlistPage() {
       if (res.ok) {
         toast.success("You're on the list! 🎉");
         setSubmitted(true);
+        fbq('track', 'Lead', { content_name: 'Waitlist Signup' });
       } else {
         toast.error(data.error || 'Something went wrong');
       }

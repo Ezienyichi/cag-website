@@ -254,6 +254,7 @@ export default function EventDetailPage() {
                 </h2>
                 <EventRegistrationForm
                   eventId={ev.id}
+                  eventTitle={ev.title}
                   registrationOpen={ev.registration_open}
                   whatsappLink={ev.whatsapp_link}
                   whatsappNumber={ev.whatsapp_number}

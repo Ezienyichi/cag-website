@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCartStore } from '@/lib/cart-store';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { fbq } from '@/lib/pixel';
 
 function VerifyContent() {
   const searchParams = useSearchParams();
@@ -36,6 +37,7 @@ function VerifyContent() {
             setOrderId(data.orderId || null);
             setDeliveryType(data.deliveryType || 'physical');
             setStatus('success');
+            fbq('track', 'Purchase', { currency: 'NGN' });
 
             // Auto-redirect digital products after a short delay
             if (data.orderId && data.deliveryType === 'download') {

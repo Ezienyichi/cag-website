@@ -9,6 +9,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import type { CMSProduct } from '@/components/store/ProductGrid';
 import { createBrowserClient } from '@/lib/supabase';
+import { fbq } from '@/lib/pixel';
 
 const PLACEHOLDER = '/images/color-alchemist.png';
 
@@ -88,6 +89,13 @@ export default function ProductDetailPage() {
         if (productRes.error || !productRes.data) { setNotFound(true); return; }
         setProduct(productRes.data as CMSProduct);
         setActiveImage(productRes.data.image_url || PLACEHOLDER);
+        fbq('track', 'ViewContent', {
+          content_ids: [productRes.data.id],
+          content_name: productRes.data.name,
+          content_type: 'product',
+          value: productRes.data.price / 100,
+          currency: 'NGN',
+        });
 
         for (const row of settingsRes.data || []) {
           if (row.key === 'whatsapp_number') setWhatsappNumber(row.value);
@@ -151,6 +159,13 @@ export default function ProductDetailPage() {
         `Please confirm availability and delivery details. Thank you!`
       );
 
+      fbq('track', 'Purchase', {
+        content_ids: [product.id],
+        content_name: product.name,
+        value: (product.price * quantity) / 100,
+        currency: 'NGN',
+        num_items: quantity,
+      });
       window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -234,6 +249,16 @@ export default function ProductDetailPage() {
   const storeHref = `/store/${product.category}`;
 
   const handleCheckout = isPhysical ? handleWhatsAppCheckout : handleFlutterwaveCheckout;
+
+  function startCheckout() {
+    setShowCheckout(true);
+    fbq('track', 'InitiateCheckout', {
+      content_ids: [product.id],
+      content_name: product.name,
+      value: product.price / 100,
+      currency: 'NGN',
+    });
+  }
 
   return (
     <>
@@ -386,7 +411,7 @@ export default function ProductDetailPage() {
             {!showCheckout ? (
               isPhysical ? (
                 <button
-                  onClick={() => setShowCheckout(true)}
+                  onClick={startCheckout}
                   className="w-full bg-[#25D366] text-white py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
                 >
                   {WA_SVG}
@@ -394,7 +419,7 @@ export default function ProductDetailPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowCheckout(true)}
+                  onClick={startCheckout}
                   className="w-full bg-primary-container text-on-primary-container py-4 rounded-full font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all font-headline flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined">

@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { createBrowserClient } from '@/lib/supabase';
+import { fbq } from '@/lib/pixel';
 
 interface PublicEvent {
   id: string;
@@ -120,6 +121,7 @@ export default function EventsPage() {
       const data = await r.json();
       if (!r.ok) { setRegError(data.error || 'Registration failed'); return; }
       setRegSuccess({ whatsapp_link: data.whatsapp_link, whatsapp_number: data.whatsapp_number });
+      fbq('track', 'CompleteRegistration', { content_name: regEvent.title });
       const waLink = data.whatsapp_link || (data.whatsapp_number ? `https://wa.me/${data.whatsapp_number}` : null);
       if (waLink) window.open(waLink, '_blank');
     } catch (err: any) {

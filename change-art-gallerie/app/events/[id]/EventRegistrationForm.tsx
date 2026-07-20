@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { fbq } from '@/lib/pixel';
 
 interface Props {
   eventId: string;
+  eventTitle?: string;
   registrationOpen: boolean;
   whatsappLink?: string | null;
   whatsappNumber?: string | null;
@@ -18,7 +20,7 @@ interface RegForm {
 
 const BLANK: RegForm = { full_name: '', phone: '', location: '', email: '' };
 
-export default function EventRegistrationForm({ eventId, registrationOpen, whatsappLink, whatsappNumber }: Props) {
+export default function EventRegistrationForm({ eventId, eventTitle, registrationOpen, whatsappLink, whatsappNumber }: Props) {
   const [form, setForm] = useState<RegForm>(BLANK);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -39,6 +41,7 @@ export default function EventRegistrationForm({ eventId, registrationOpen, whats
       const data = await r.json();
       if (!r.ok) { setError(data.error || 'Registration failed'); return; }
       setSuccess(true);
+      fbq('track', 'CompleteRegistration', { content_name: eventTitle || 'Event Registration' });
       const link = data.whatsapp_link || (data.whatsapp_number ? `https://wa.me/${data.whatsapp_number}` : null);
       if (link) window.open(link, '_blank');
     } catch (err: any) {
