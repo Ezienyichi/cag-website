@@ -8,6 +8,8 @@ interface Stats {
   totalWaitlist: number;
   paidOrders: number;
   pendingOrders: number;
+  totalRegistrations: number;
+  totalDownloads: number;
 }
 
 export default function AdminDashboard() {
@@ -22,13 +24,17 @@ export default function AdminDashboard() {
     const key = sessionStorage.getItem('admin_key') || '';
 
     try {
-      const [ordersRes, waitlistRes] = await Promise.all([
+      const [ordersRes, waitlistRes, regsRes, downloadsRes] = await Promise.all([
         fetch('/api/orders', { headers: { 'x-admin-key': key } }),
         fetch('/api/admin/waitlist', { headers: { 'x-admin-key': key } }),
+        fetch('/api/admin/event-registrations', { headers: { 'x-admin-key': key } }),
+        fetch('/api/admin/resource-leads', { headers: { 'x-admin-key': key } }),
       ]);
 
       const ordersData = await ordersRes.json();
       const waitlistData = await waitlistRes.json();
+      const regsData = await regsRes.json();
+      const downloadsData = await downloadsRes.json();
 
       const orders = ordersData.orders || [];
       const totalRevenue = orders
@@ -41,6 +47,8 @@ export default function AdminDashboard() {
         totalWaitlist: waitlistData.total || 0,
         paidOrders: orders.filter((o: any) => o.status === 'paid').length,
         pendingOrders: orders.filter((o: any) => o.status === 'pending').length,
+        totalRegistrations: regsData.total || 0,
+        totalDownloads: downloadsData.total || 0,
       });
     } catch (err) {
       console.error('Failed to fetch stats:', err);
@@ -89,13 +97,25 @@ export default function AdminDashboard() {
       icon: 'local_shipping',
       color: 'bg-error-container/20 text-error',
     },
+    {
+      label: 'Event Registrations',
+      value: stats?.totalRegistrations || 0,
+      icon: 'event',
+      color: 'bg-primary-container/20 text-primary',
+    },
+    {
+      label: 'Resource Downloads',
+      value: stats?.totalDownloads || 0,
+      icon: 'download',
+      color: 'bg-secondary-container/20 text-secondary',
+    },
   ];
 
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-bold font-headline mb-8">Dashboard</h1>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-6 mb-10">
         {statCards.map((card) => (
           <div key={card.label} className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
             <div className={`w-12 h-12 ${card.color} rounded-xl flex items-center justify-center mb-4`}>
@@ -111,11 +131,11 @@ export default function AdminDashboard() {
         <h2 className="text-xl font-bold font-headline mb-4">Quick Actions</h2>
         <div className="grid sm:grid-cols-3 gap-4">
           <a
-            href="/admin/orders"
+            href="/admin/customers"
             className="bg-surface-container-low rounded-xl p-4 hover:bg-surface-container-high transition-colors text-center"
           >
-            <span className="material-symbols-outlined text-2xl text-primary mb-2">receipt_long</span>
-            <p className="font-bold text-sm font-headline">Manage Orders</p>
+            <span className="material-symbols-outlined text-2xl text-primary mb-2">group</span>
+            <p className="font-bold text-sm font-headline">Customers &amp; Orders</p>
           </a>
           <a
             href="/admin/waitlist"

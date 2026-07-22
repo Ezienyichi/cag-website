@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard', icon: 'dashboard' },
+  { href: '/admin/customers', label: 'Customers & Orders', icon: 'group' },
   { href: '/admin/products', label: 'Products', icon: 'inventory_2' },
   { href: '/admin/orders', label: 'Orders', icon: 'receipt_long' },
   { href: '/admin/waitlist', label: 'Waitlist', icon: 'people' },
