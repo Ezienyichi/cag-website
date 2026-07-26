@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { verifyRecaptcha, isGibberish } from '@/lib/recaptcha';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { event_id, full_name, phone, location, email } = body;
+    const { event_id, full_name, phone, location, email, website, recaptchaToken } = body;
+
+    // Honeypot — bots fill hidden fields, humans don't
+    if (website) {
+      return NextResponse.json({ success: true });
+    }
 
     if (!event_id || !full_name?.trim() || !phone?.trim()) {
       return NextResponse.json({ error: 'Full name and phone number are required' }, { status: 400 });
+    }
+
+    // Gibberish name check
+    if (isGibberish(full_name)) {
+      return NextResponse.json({ success: true }); // fake success
+    }
+
+    // reCAPTCHA verification
+    if (recaptchaToken) {
+      const isHuman = await verifyRecaptcha(recaptchaToken);
+      if (!isHuman) {
+        return NextResponse.json({ error: 'Verification failed. Please try again.' }, { status: 400 });
+      }
     }
 
     const supabase = createServerClient();

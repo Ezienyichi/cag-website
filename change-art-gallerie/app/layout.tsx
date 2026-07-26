@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans, Be_Vietnam_Pro } from 'next/font/google';
 import { Toaster } from 'sonner';
 import Script from 'next/script';
+import RecaptchaProvider from '@/components/RecaptchaProvider';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import './globals.css';
 
@@ -55,7 +56,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             alt=""
           />
         </noscript>
-        {children}
+        <RecaptchaProvider>
+          {children}
+        </RecaptchaProvider>
         <WhatsAppButton />
         <Toaster position="bottom-right" richColors />
       </body>

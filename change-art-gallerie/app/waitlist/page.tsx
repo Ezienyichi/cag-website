@@ -10,6 +10,7 @@ import BookCarousel from '@/components/BookCarousel';
 import RealTimeGrid from '@/components/RealTimeGrid';
 import { createBrowserClient } from '@/lib/supabase';
 import { fbq } from '@/lib/pixel';
+import { getRecaptchaToken } from '@/components/useRecaptcha';
 
 const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/cag_childrencolouringbook/?hl=en',
@@ -71,6 +72,8 @@ export default function WaitlistPage() {
   const [role, setRole] = useState('parent');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+  const [formLoadTime] = useState(Date.now());
 
   // Dynamic CMS data
   const [whatsappNumber, setWhatsappNumber] = useState('2348012345678');
@@ -159,13 +162,29 @@ export default function WaitlistPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Honeypot: bots fill every visible field including this hidden one
+    if (honeypot) {
+      toast.success("You're on the list! 🎉");
+      setSubmitted(true);
+      return;
+    }
+
+    // Time check: real users take more than 3 seconds
+    if (Date.now() - formLoadTime < 3000) {
+      toast.success("You're on the list! 🎉");
+      setSubmitted(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const recaptchaToken = await getRecaptchaToken('waitlist_signup');
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, full_name: fullName, phone, location, role }),
+        body: JSON.stringify({ email, full_name: fullName, phone, location, role, website: honeypot, recaptchaToken }),
       });
 
       const data = await res.json();
@@ -304,6 +323,18 @@ export default function WaitlistPage() {
                           <option value="other">Other</option>
                         </select>
                       </div>
+
+                      {/* Honeypot — invisible to humans, bots fill it */}
+                      <input
+                        type="text"
+                        name="website"
+                        value={honeypot}
+                        onChange={e => setHoneypot(e.target.value)}
+                        style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }}
+                        tabIndex={-1}
+                        autoComplete="off"
+                        aria-hidden="true"
+                      />
 
                       <button
                         type="submit"

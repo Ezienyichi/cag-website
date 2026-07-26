@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { fbq } from '@/lib/pixel';
+import { getRecaptchaToken } from '@/components/useRecaptcha';
 
 interface Props {
   eventId: string;
@@ -25,18 +26,34 @@ export default function EventRegistrationForm({ eventId, eventTitle, registratio
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [formLoadTime] = useState(Date.now());
 
   const waUrl = whatsappLink || (whatsappNumber ? `https://wa.me/${whatsappNumber}` : null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Honeypot check
+    if (honeypot) {
+      setSuccess(true);
+      return;
+    }
+
+    // Time check — real users take more than 3 seconds
+    if (Date.now() - formLoadTime < 3000) {
+      setSuccess(true);
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     try {
+      const recaptchaToken = await getRecaptchaToken('event_register');
       const r = await fetch('/api/events/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: eventId, ...form }),
+        body: JSON.stringify({ event_id: eventId, ...form, website: honeypot, recaptchaToken }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.error || 'Registration failed'); return; }
@@ -89,7 +106,7 @@ export default function EventRegistrationForm({ eventId, eventTitle, registratio
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-4" style={{ position: 'relative' }}>
       <div>
         <label className="block text-sm font-medium mb-1.5">Full Name *</label>
         <input
@@ -132,6 +149,18 @@ export default function EventRegistrationForm({ eventId, eventTitle, registratio
           className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
         />
       </div>
+      {/* Honeypot — invisible to humans, bots fill it */}
+      <input
+        type="text"
+        name="website"
+        value={honeypot}
+        onChange={e => setHoneypot(e.target.value)}
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
+
       {error && (
         <p className="text-sm text-error bg-error-container/20 px-3 py-2.5 rounded-lg">{error}</p>
       )}

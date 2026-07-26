@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { createBrowserClient } from '@/lib/supabase';
 import { fbq } from '@/lib/pixel';
+import { getRecaptchaToken } from '@/components/useRecaptcha';
 
 interface PublicEvent {
   id: string;
@@ -76,6 +77,8 @@ export default function EventsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [regSuccess, setRegSuccess] = useState<{ whatsapp_link: string | null; whatsapp_number: string | null } | null>(null);
   const [regError, setRegError] = useState('');
+  const [regHoneypot, setRegHoneypot] = useState('');
+  const [regOpenTime, setRegOpenTime] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -105,18 +108,34 @@ export default function EventsPage() {
     setRegForm(BLANK_REG);
     setRegSuccess(null);
     setRegError('');
+    setRegHoneypot('');
+    setRegOpenTime(Date.now());
   }
 
   async function submitReg(e: React.FormEvent) {
     e.preventDefault();
     if (!regEvent) return;
+
+    // Honeypot check
+    if (regHoneypot) {
+      setRegSuccess({ whatsapp_link: null, whatsapp_number: null });
+      return;
+    }
+
+    // Time check — real users take more than 3 seconds
+    if (Date.now() - regOpenTime < 3000) {
+      setRegSuccess({ whatsapp_link: null, whatsapp_number: null });
+      return;
+    }
+
     setSubmitting(true);
     setRegError('');
     try {
+      const recaptchaToken = await getRecaptchaToken('event_register');
       const r = await fetch('/api/events/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: regEvent.id, ...regForm }),
+        body: JSON.stringify({ event_id: regEvent.id, ...regForm, website: regHoneypot, recaptchaToken }),
       });
       const data = await r.json();
       if (!r.ok) { setRegError(data.error || 'Registration failed'); return; }
@@ -389,6 +408,18 @@ export default function EventsPage() {
                       className="w-full px-4 py-3 bg-surface-container-high rounded-lg ghost-border-focus transition-all text-sm"
                     />
                   </div>
+
+                  {/* Honeypot — invisible to humans, bots fill it */}
+                  <input
+                    type="text"
+                    name="website"
+                    value={regHoneypot}
+                    onChange={e => setRegHoneypot(e.target.value)}
+                    style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }}
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                  />
 
                   {regError && (
                     <p className="text-sm text-error bg-error-container/20 px-3 py-2.5 rounded-lg">{regError}</p>
