@@ -50,7 +50,13 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Waitlist insert error:', error);
+      console.error('Waitlist insert error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        full: error,
+      });
       return NextResponse.json({ error: 'Failed to join waitlist' }, { status: 500 });
     }
 
