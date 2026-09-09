@@ -179,12 +179,22 @@ export default function WaitlistPage() {
 
     setLoading(true);
 
+    let recaptchaToken = '';
     try {
-      const recaptchaToken = await getRecaptchaToken('waitlist_signup');
+      recaptchaToken = await getRecaptchaToken('waitlist_signup');
+    } catch (err) {
+      console.error('reCAPTCHA not available, continuing without it:', err);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    try {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, full_name: fullName, phone, location, role, website: honeypot, recaptchaToken }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -196,9 +206,11 @@ export default function WaitlistPage() {
       } else {
         toast.error(data.error || 'Something went wrong');
       }
-    } catch {
-      toast.error('Network error. Please try again.');
+    } catch (err) {
+      console.error('Waitlist submit error:', err);
+      toast.error('Something went wrong. Please try again.');
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }

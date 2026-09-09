@@ -16,8 +16,31 @@ export async function getRecaptchaToken(action: string): Promise<string> {
       resolve('');
       return;
     }
-    window.grecaptcha.ready(() => {
-      window.grecaptcha.execute(siteKey, { action }).then(resolve).catch(() => resolve(''));
-    });
+
+    let settled = false;
+    const finish = (value: string) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    // grecaptcha.ready()/execute() can silently never call back (blocked script,
+    // slow network) — never let that stall form submission.
+    setTimeout(() => {
+      console.error('reCAPTCHA timed out, continuing without a token');
+      finish('');
+    }, 4000);
+
+    try {
+      window.grecaptcha.ready(() => {
+        window.grecaptcha.execute(siteKey, { action }).then(finish).catch((err) => {
+          console.error('reCAPTCHA execute failed:', err);
+          finish('');
+        });
+      });
+    } catch (err) {
+      console.error('reCAPTCHA ready() threw:', err);
+      finish('');
+    }
   });
 }
