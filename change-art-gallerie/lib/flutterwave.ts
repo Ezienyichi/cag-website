@@ -8,6 +8,7 @@ const FLUTTERWAVE_BASE_URL = 'https://api.flutterwave.com/v3';
 interface FlutterwaveHeaders {
   Authorization: string;
   'Content-Type': string;
+  [key: string]: string;
 }
 
 function getHeaders(): FlutterwaveHeaders {
