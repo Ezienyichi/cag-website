@@ -6,6 +6,8 @@ interface Signup {
   id: string;
   email: string;
   full_name: string;
+  phone: string | null;
+  location: string | null;
   role: string;
   source: string;
   created_at: string;
@@ -43,10 +45,12 @@ export default function AdminWaitlistPage() {
   }
 
   function exportCSV() {
-    const headers = ['Name', 'Email', 'Role', 'Source', 'Date Joined'];
+    const headers = ['Name', 'Email', 'Phone', 'Location', 'Role', 'Source', 'Date Joined'];
     const rows = signups.map((s) => [
       s.full_name,
       s.email,
+      s.phone || '',
+      s.location || '',
       s.role,
       s.source,
       new Date(s.created_at).toLocaleDateString(),
@@ -106,11 +110,14 @@ export default function AdminWaitlistPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-surface-container-low">
-                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant">Name</th>
-                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant">Email</th>
-                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant">Role</th>
-                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant">Source</th>
-                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant">Joined</th>
+                  {/* Priority columns first so they stay visible before the horizontal scroll kicks in on mobile */}
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Name</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Phone</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Joined</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Email</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Location</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Role</th>
+                  <th className="text-left px-6 py-4 font-bold font-headline text-on-surface-variant whitespace-nowrap">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,17 +126,19 @@ export default function AdminWaitlistPage() {
                     key={s.id}
                     className={i % 2 === 0 ? 'bg-surface' : 'bg-surface-container-low'}
                   >
-                    <td className="px-6 py-4 font-medium">{s.full_name || '—'}</td>
-                    <td className="px-6 py-4 text-primary">{s.email}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 font-medium whitespace-nowrap">{s.full_name || '—'}</td>
+                    <td className="px-6 py-4 text-on-surface-variant whitespace-nowrap">{s.phone || '—'}</td>
+                    <td className="px-6 py-4 text-on-surface-variant whitespace-nowrap">
+                      {new Date(s.created_at).toLocaleDateString('en-GB')}
+                    </td>
+                    <td className="px-6 py-4 text-primary whitespace-nowrap">{s.email}</td>
+                    <td className="px-6 py-4 text-on-surface-variant whitespace-nowrap">{s.location || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="bg-tertiary-container/30 text-on-tertiary-container px-3 py-1 rounded-full text-xs font-bold capitalize">
                         {s.role}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-on-surface-variant">{s.source}</td>
-                    <td className="px-6 py-4 text-on-surface-variant">
-                      {new Date(s.created_at).toLocaleDateString('en-GB')}
-                    </td>
+                    <td className="px-6 py-4 text-on-surface-variant whitespace-nowrap">{s.source}</td>
                   </tr>
                 ))}
               </tbody>

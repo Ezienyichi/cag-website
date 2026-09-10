@@ -4,6 +4,10 @@ import type { CartItem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
+  console.log('FLUTTERWAVE_SECRET_KEY exists:', !!process.env.FLUTTERWAVE_SECRET_KEY);
+  console.log('FLUTTERWAVE_SECRET_KEY starts with:', process.env.FLUTTERWAVE_SECRET_KEY?.substring(0, 10));
+  console.log('FLUTTERWAVE_SECRET_KEY length:', process.env.FLUTTERWAVE_SECRET_KEY?.length);
+
   try {
     const { items, customerEmail, customerName } = (await req.json()) as {
       items: CartItem[];
